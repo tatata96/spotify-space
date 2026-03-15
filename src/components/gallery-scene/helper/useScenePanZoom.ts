@@ -1,0 +1,106 @@
+import { useEffect, useRef } from "react";
+import { gsap } from "gsap";
+import type { SceneLayout } from "./gallerySceneLayout";
+
+const PAN_SPEED = 0.8;
+const ZOOM_SPEED = 80;
+const MIN_CAMERA_Z = -20000;
+const MAX_CAMERA_Z = 35000;
+const LAYOUT_ANIMATION_DURATION = 0.95;
+const CAMERA_ANIMATION_DURATION = 0.25;
+
+export function useScenePanZoom(
+  galleryRef: React.RefObject<HTMLDivElement | null>,
+  itemRefs: React.RefObject<(HTMLButtonElement | null)[]>,
+  labelRefs: React.RefObject<(HTMLDivElement | null)[]>,
+  sceneLayout: SceneLayout
+) {
+  const cameraXRef = useRef(0);
+  const cameraYRef = useRef(0);
+  const cameraZRef = useRef(4000);
+  const sceneLayoutRef = useRef(sceneLayout);
+
+  function updateScene(duration: number) {
+    const gallery = galleryRef.current;
+    const layout = sceneLayoutRef.current;
+    if (!gallery) return;
+
+    layout.items.forEach((sceneItem, index) => {
+      const element = itemRefs.current[index];
+      if (!element) return;
+
+      const relativeZ = sceneItem.baseZ - cameraZRef.current;
+
+      gsap.to(element, {
+        duration,
+        x: sceneItem.x,
+        y: sceneItem.y,
+        z: relativeZ,
+        ease: "power3.inOut",
+        overwrite: "auto",
+      });
+    });
+
+    layout.labels.forEach((label, index) => {
+      const element = labelRefs.current[index];
+      if (!element) return;
+
+      gsap.to(element, {
+        duration,
+        x: label.x,
+        y: label.y,
+        yPercent: -50,
+        autoAlpha: 1,
+        ease: "power3.inOut",
+        overwrite: "auto",
+      });
+    });
+
+    gsap.to(gallery, {
+      duration: CAMERA_ANIMATION_DURATION,
+      x: cameraXRef.current,
+      y: cameraYRef.current,
+      ease: "power2.out",
+      overwrite: "auto",
+    });
+  }
+
+  useEffect(() => {
+    const gallery = galleryRef.current;
+    if (!gallery) return;
+
+    function handleWheel(event: WheelEvent) {
+      const isPinch = event.ctrlKey;
+
+      event.preventDefault();
+
+      if (isPinch) {
+        cameraZRef.current += event.deltaY * ZOOM_SPEED;
+
+        cameraZRef.current = gsap.utils.clamp(
+          MIN_CAMERA_Z,
+          MAX_CAMERA_Z,
+          cameraZRef.current
+        );
+      } else {
+        cameraXRef.current -= event.deltaX * PAN_SPEED;
+        cameraYRef.current -= event.deltaY * PAN_SPEED;
+      }
+
+      updateScene(CAMERA_ANIMATION_DURATION);
+    }
+
+    updateScene(0);
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener("wheel", handleWheel);
+    };
+  }, []);
+
+  useEffect(() => {
+    sceneLayoutRef.current = sceneLayout;
+    updateScene(LAYOUT_ANIMATION_DURATION);
+  }, [sceneLayout]);
+}
