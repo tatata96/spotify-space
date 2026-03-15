@@ -17,7 +17,6 @@ export type GallerySceneProps = {
   onItemClick?: (item: GalleryItemData) => void;
 };
 
-
 const PAN_SPEED = 0.8;
 const ZOOM_SPEED = 80;
 const MIN_CAMERA_Z = -20000;
@@ -32,7 +31,7 @@ export function GalleryScene({
 
   const cameraXRef = useRef(0);
   const cameraYRef = useRef(0);
-  const cameraZRef = useRef(0);
+  const cameraZRef = useRef(4000);
 
 
   const sceneItems = useMemo(() => {
@@ -51,13 +50,11 @@ export function GalleryScene({
         if (!element) return;
 
         const relativeZ = sceneItem.baseZ - cameraZRef.current;
-        const opacity = relativeZ > 600 ? 0 : 1;
 
         gsap.set(element, {
           x: sceneItem.x,
           y: sceneItem.y,
           z: relativeZ,
-          opacity,
         });
       });
 
@@ -107,7 +104,7 @@ export function GalleryScene({
           <GalleryItem
             key={item.id}
             item={item}
-            sizeClass={sceneItems[index]?.sizeClass ?? "block--medium"}
+            sizeClass={"block--small"}
             onClick={onItemClick}
             itemRef={(element) => {
               itemRefs.current[index] = element;
@@ -126,13 +123,15 @@ function randomFromArray<T>(array: readonly T[]): T {
 function createInitialLayout(items: GalleryItemData[]): SceneItemMeta[] {
   const centerX = window.innerWidth / 2;
   const centerY = window.innerHeight / 2;
+  const maxRadius = 900;
 
   return items.map(() => {
     const angle = gsap.utils.random(0, Math.PI * 2);
-    const radius = gsap.utils.random(450, 900);
+    // sqrt(random()) so points are uniformly distributed over the disk (filled circle)
+    const radius = maxRadius * Math.sqrt(gsap.utils.random(0, 1));
 
-    const jitterX = gsap.utils.random(-80, 80);
-    const jitterY = gsap.utils.random(-80, 80);
+    const jitterX = gsap.utils.random(-40, 40);
+    const jitterY = gsap.utils.random(-40, 40);
 
     const x = centerX + Math.cos(angle) * radius + jitterX;
     const y = centerY + Math.sin(angle) * radius + jitterY;
