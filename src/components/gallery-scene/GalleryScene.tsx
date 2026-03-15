@@ -17,6 +17,12 @@ export type GallerySceneProps = {
   onItemClick?: (item: GalleryItemData) => void;
 };
 
+
+const PAN_SPEED = 0.8;
+const ZOOM_SPEED = 80;
+const MIN_CAMERA_Z = -20000;
+const MAX_CAMERA_Z = 35000;
+
 export function GalleryScene({
   items,
   onItemClick,
@@ -28,10 +34,6 @@ export function GalleryScene({
   const cameraYRef = useRef(0);
   const cameraZRef = useRef(0);
 
-  const PAN_SPEED = 0.8;
-  const ZOOM_SPEED = 40;
-  const MIN_CAMERA_Z = -20000;
-  const MAX_CAMERA_Z = 35000;
 
   const sceneItems = useMemo(() => {
     if (typeof window === "undefined") return [];
@@ -43,6 +45,7 @@ export function GalleryScene({
     if (!gallery) return;
 
     function updateBlocks() {
+      console.log("updateBlocks");
       sceneItems.forEach((sceneItem, index) => {
         const element = itemRefs.current[index];
         if (!element) return;
@@ -73,6 +76,8 @@ export function GalleryScene({
 
       if (isPinch) {
         cameraZRef.current += event.deltaY * ZOOM_SPEED;
+
+        // to prevent the camera from going out of bounds while zooming
         cameraZRef.current = gsap.utils.clamp(
           MIN_CAMERA_Z,
           MAX_CAMERA_Z,
