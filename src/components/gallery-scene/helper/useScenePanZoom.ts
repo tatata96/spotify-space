@@ -3,7 +3,7 @@ import { gsap } from "gsap";
 import type { SceneLayout } from "./gallerySceneLayout";
 
 const PAN_SPEED = 0.8;
-const ZOOM_SPEED = 1;
+const ZOOM_SPEED = 90;
 const MIN_CAMERA_Z = -20000;
 const MAX_CAMERA_Z = 35000;
 const LAYOUT_ANIMATION_DURATION = 0.95;
@@ -24,6 +24,7 @@ export function useScenePanZoom(
     const gallery = galleryRef.current;
     const layout = sceneLayoutRef.current;
     if (!gallery) return;
+    const applyTransform = duration === 0 ? gsap.set : gsap.to;
 
     layout.items.forEach((sceneItem, index) => {
       const element = itemRefs.current[index];
@@ -31,7 +32,7 @@ export function useScenePanZoom(
 
       const relativeZ = sceneItem.baseZ - cameraZRef.current;
 
-      gsap.to(element, {
+      applyTransform(element, {
         duration,
         x: sceneItem.x,
         y: sceneItem.y,
@@ -45,7 +46,7 @@ export function useScenePanZoom(
       const element = labelRefs.current[index];
       if (!element) return;
 
-      gsap.to(element, {
+      applyTransform(element, {
         duration,
         x: label.x,
         y: label.y,
@@ -56,8 +57,8 @@ export function useScenePanZoom(
       });
     });
 
-    gsap.to(gallery, {
-      duration: CAMERA_ANIMATION_DURATION,
+    applyTransform(gallery, {
+      duration: duration === 0 ? 0 : CAMERA_ANIMATION_DURATION,
       x: cameraXRef.current,
       y: cameraYRef.current,
       ease: "power2.out",
@@ -75,16 +76,22 @@ export function useScenePanZoom(
       event.preventDefault();
 
       if (isPinch) {
-        cameraZRef.current += event.deltaY * ZOOM_SPEED;
+        const deltaMultiplier =
+          event.deltaMode === WheelEvent.DOM_DELTA_LINE
+            ? 16
+            : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+              ? window.innerHeight
+              : 1;
 
+        cameraZRef.current += event.deltaY * deltaMultiplier * ZOOM_SPEED;
         cameraZRef.current = gsap.utils.clamp(
           MIN_CAMERA_Z,
           MAX_CAMERA_Z,
           cameraZRef.current
         );
 
-        updateScene(0); 
-
+        updateScene(0);
+        return;
       } else {
         cameraXRef.current -= event.deltaX * PAN_SPEED;
         cameraYRef.current -= event.deltaY * PAN_SPEED;
