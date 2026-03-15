@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { gsap } from "gsap";
 import type { SceneLayout } from "./gallerySceneLayout";
 
 const PAN_SPEED = 0.8;
-const ZOOM_SPEED = 80;
+const ZOOM_SPEED = 20;
 const MIN_CAMERA_Z = -20000;
 const MAX_CAMERA_Z = 35000;
 const LAYOUT_ANIMATION_DURATION = 0.95;
@@ -20,7 +20,7 @@ export function useScenePanZoom(
   const cameraZRef = useRef(4000);
   const sceneLayoutRef = useRef(sceneLayout);
 
-  function updateScene(duration: number) {
+  const updateScene = useEffectEvent((duration: number) => {
     const gallery = galleryRef.current;
     const layout = sceneLayoutRef.current;
     if (!gallery) return;
@@ -63,7 +63,7 @@ export function useScenePanZoom(
       ease: "power2.out",
       overwrite: "auto",
     });
-  }
+  });
 
   useEffect(() => {
     const gallery = galleryRef.current;
@@ -97,7 +97,7 @@ export function useScenePanZoom(
     return () => {
       window.removeEventListener("wheel", handleWheel);
     };
-  }, []);
+  }, [galleryRef, itemRefs, labelRefs]);
 
   useEffect(() => {
     sceneLayoutRef.current = sceneLayout;
