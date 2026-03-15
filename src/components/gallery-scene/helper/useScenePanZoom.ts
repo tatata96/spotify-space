@@ -3,7 +3,7 @@ import { gsap } from "gsap";
 import type { SceneLayout } from "./gallerySceneLayout";
 
 const PAN_SPEED = 0.8;
-const ZOOM_SPEED = 20;
+const ZOOM_SPEED = 1;
 const MIN_CAMERA_Z = -20000;
 const MAX_CAMERA_Z = 35000;
 const LAYOUT_ANIMATION_DURATION = 0.95;
@@ -82,6 +82,9 @@ export function useScenePanZoom(
           MAX_CAMERA_Z,
           cameraZRef.current
         );
+
+        updateScene(0); 
+
       } else {
         cameraXRef.current -= event.deltaX * PAN_SPEED;
         cameraYRef.current -= event.deltaY * PAN_SPEED;
