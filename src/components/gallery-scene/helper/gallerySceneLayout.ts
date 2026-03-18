@@ -24,6 +24,25 @@ export type LayoutMode = "category" | "id" | "initial";
 
 const CLUSTER_SIZE_CLASS = "block--small";
 
+/** Shared cluster layout options. */
+const CLUSTER_LAYOUT_SHARED = {
+  topStart: 130,
+  clusterCenterX: 182,
+  clusterCenterOffsetY: 24,
+  labelGapX: 4,
+  labelOffsetY: 0,
+} as const;
+
+/** Radius scales with sqrt(count) so cluster area grows with item count; sized so items don’t overlap. */
+const CLUSTER_RADIUS_BASE = 56;
+const CLUSTER_RADIUS_SCALE = 18;
+const CLUSTER_ROW_PADDING = 60;
+const CLUSTER_GAP_Y = 48;
+
+function clusterRadiusForCount(count: number): number {
+  return CLUSTER_RADIUS_BASE + CLUSTER_RADIUS_SCALE * Math.sqrt(Math.max(1, count));
+}
+
 /** Single random point inside a circle (uniform over area, with jitter). */
 function createScatterPoint(
   centerX: number,
@@ -81,9 +100,6 @@ type ClusterLayoutOptions = {
   topStart: number;
   labelGapX: number;
   labelOffsetY: number;
-  clusterGapY: number;
-  rowHeight: number;
-  clusterRadius: number;
   clusterCenterX: number;
   clusterCenterOffsetY: number;
   sortItems?: (items: GalleryItemData[]) => GalleryItemData[];
@@ -97,9 +113,6 @@ function createClusterLayout({
   topStart,
   labelGapX,
   labelOffsetY,
-  clusterGapY,
-  rowHeight,
-  clusterRadius,
   clusterCenterX,
   clusterCenterOffsetY,
   sortItems,
@@ -129,13 +142,17 @@ function createClusterLayout({
 
   groupOrder.forEach((key) => {
     const groupIndexes = groups.get(key) ?? [];
+    const count = groupIndexes.length;
+    const clusterRadius = clusterRadiusForCount(count);
+    const rowHeight = 2 * clusterRadius + CLUSTER_ROW_PADDING;
+
     const clusterCenterY = currentY + clusterCenterOffsetY;
     const points = createScatterPoints(
       clusterCenterX,
       clusterCenterY,
       clusterRadius,
-      10,
-      groupIndexes.length
+      6,
+      count
     );
 
     const maxX = Math.max(...points.map((point) => point.x));
@@ -161,7 +178,7 @@ function createClusterLayout({
       };
     });
 
-    currentY += rowHeight + clusterGapY;
+    currentY += rowHeight + CLUSTER_GAP_Y;
   });
 
   return {
@@ -177,23 +194,17 @@ export function createSceneLayout(
 ): SceneLayout {
   if (layoutMode === "category") {
     return createClusterLayout({
+      ...CLUSTER_LAYOUT_SHARED,
       items,
       initialLayout,
       groupKey: (item) => item.category?.trim() || "Uncategorized",
       labelTitle: (group) => group.toUpperCase(),
-      topStart: 140,
-      clusterCenterX: 176,
-      clusterCenterOffsetY: 20,
-      labelGapX: 4,
-      labelOffsetY: 0,
-      clusterGapY: 120,
-      rowHeight: 182,
-      clusterRadius: 56,
     });
   }
 
   if (layoutMode === "id") {
     return createClusterLayout({
+      ...CLUSTER_LAYOUT_SHARED,
       items,
       initialLayout,
       sortItems: (sceneItems) =>
@@ -205,14 +216,6 @@ export function createSceneLayout(
         return `${String(bucketStart).padStart(3, "0")}-${String(bucketEnd).padStart(3, "0")}`;
       },
       labelTitle: (group) => group,
-      topStart: 120,
-      clusterCenterX: 188,
-      clusterCenterOffsetY: 28,
-      labelGapX: 4,
-      labelOffsetY: 0,
-      clusterGapY: 112,
-      rowHeight: 192,
-      clusterRadius: 74,
     });
   }
 
@@ -221,3 +224,4 @@ export function createSceneLayout(
     labels: [],
   };
 }
+
