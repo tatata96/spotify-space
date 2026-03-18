@@ -13,6 +13,7 @@ export type SceneLabelMeta = {
   title: string;
   x: number;
   y: number;
+  baseZ: number;
 };
 
 export type SceneLayout = {
@@ -198,6 +199,7 @@ function createClusterLayout({
       title: labelTitle(key),
       x: maxX + LABEL_GAP_X,
       y: averageY + LABEL_OFFSET_Y,
+      baseZ: CLUSTER_Z_PLANE,
     });
 
     groupIndexes.forEach((itemIndex, groupIndex) => {

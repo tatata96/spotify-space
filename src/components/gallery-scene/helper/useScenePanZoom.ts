@@ -52,10 +52,12 @@ export function useScenePanZoom(
       const element = labelRefs.current[index];
       if (!element) return;
 
+      const relativeZ = label.baseZ - cameraZRef.current;
       applyTransform(element, {
         duration,
         x: label.x,
         y: label.y,
+        z: relativeZ,
         yPercent: -50,
         autoAlpha: 1,
         ease: "power3.inOut",
