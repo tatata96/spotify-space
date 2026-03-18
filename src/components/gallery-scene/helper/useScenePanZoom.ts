@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import type { LayoutMode, SceneLayout } from "./gallerySceneLayout";
 
@@ -19,14 +19,45 @@ export function useScenePanZoom(
   layoutMode: LayoutMode,
   viewportSize: { width: number; height: number }
 ) {
+  const [activeClusterKey, setActiveClusterKey] = useState<string | null>(null);
+  const [clusterScrollProgress, setClusterScrollProgress] = useState(0);
   const cameraXRef = useRef(0);
   const cameraYRef = useRef(0);
   const cameraZRef = useRef(4000);
+  const activeClusterKeyRef = useRef<string | null>(null);
+  const activeClusterFrameRef = useRef<number | null>(null);
+  const clusterScrollProgressRef = useRef(0);
   const sceneLayoutRef = useRef(sceneLayout);
   const lastLayoutModeRef = useRef<LayoutMode>(layoutMode);
   const layoutModeRef = useRef<LayoutMode>(layoutMode);
 
-  const updateScene = useEffectEvent((duration: number) => {
+  const updateActiveClusterKey = useCallback((nextKey: string | null) => {
+    if (activeClusterKeyRef.current === nextKey) return;
+
+    activeClusterKeyRef.current = nextKey;
+
+    if (activeClusterFrameRef.current !== null) {
+      cancelAnimationFrame(activeClusterFrameRef.current);
+    }
+
+    activeClusterFrameRef.current = requestAnimationFrame(() => {
+      activeClusterFrameRef.current = null;
+      setActiveClusterKey(nextKey);
+    });
+  }, []);
+
+  const updateClusterScrollProgress = useCallback((nextProgress: number) => {
+    const clampedProgress = gsap.utils.clamp(0, 1, nextProgress);
+    if (Math.abs(clusterScrollProgressRef.current - clampedProgress) < 0.001) return;
+
+    clusterScrollProgressRef.current = clampedProgress;
+
+    requestAnimationFrame(() => {
+      setClusterScrollProgress(clampedProgress);
+    });
+  }, []);
+
+  const updateScene = useCallback((duration: number) => {
     const gallery = galleryRef.current;
     const layout = sceneLayoutRef.current;
     if (!gallery) return;
@@ -72,9 +103,67 @@ export function useScenePanZoom(
       ease: "power2.out",
       overwrite: "auto",
     });
-  });
 
-  const frameLayout = useEffectEvent((mode: LayoutMode) => {
+    if (layoutModeRef.current === "initial" || layout.labels.length === 0) {
+      updateActiveClusterKey(null);
+      updateClusterScrollProgress(0);
+      return;
+    }
+
+    const sortedLabels = [...layout.labels].sort((first, second) => first.y - second.y);
+    const viewportCenterY = viewportSize.height / 2 - cameraYRef.current;
+    let closestLabel = sortedLabels[0];
+    let closestDistance = Math.abs(closestLabel.y - viewportCenterY);
+
+    sortedLabels.forEach((label) => {
+      const distance = Math.abs(label.y - viewportCenterY);
+      if (distance < closestDistance) {
+        closestLabel = label;
+        closestDistance = distance;
+      }
+    });
+
+    let nextProgress = 0;
+    if (sortedLabels.length > 1) {
+      if (viewportCenterY <= sortedLabels[0].y) {
+        nextProgress = 0;
+      } else if (viewportCenterY >= sortedLabels[sortedLabels.length - 1].y) {
+        nextProgress = 1;
+      } else {
+        for (let index = 0; index < sortedLabels.length - 1; index += 1) {
+          const currentLabel = sortedLabels[index];
+          const nextLabel = sortedLabels[index + 1];
+          if (viewportCenterY >= currentLabel.y && viewportCenterY <= nextLabel.y) {
+            const segmentProgress =
+              (viewportCenterY - currentLabel.y) / Math.max(1, nextLabel.y - currentLabel.y);
+            nextProgress = (index + segmentProgress) / (sortedLabels.length - 1);
+            break;
+          }
+        }
+      }
+    }
+
+    updateActiveClusterKey(closestLabel.key);
+    updateClusterScrollProgress(nextProgress);
+  }, [
+    galleryRef,
+    itemRefs,
+    labelRefs,
+    updateActiveClusterKey,
+    updateClusterScrollProgress,
+    viewportSize.height,
+  ]);
+
+  const focusCluster = useCallback((clusterKey: string) => {
+    const layout = sceneLayoutRef.current;
+    const targetLabel = layout.labels.find((label) => label.key === clusterKey);
+    if (!targetLabel) return;
+
+    cameraYRef.current = viewportSize.height / 2 - targetLabel.y;
+    updateScene(CAMERA_ANIMATION_DURATION);
+  }, [updateScene, viewportSize.height]);
+
+  const frameLayout = useCallback((mode: LayoutMode) => {
     const layout = sceneLayoutRef.current;
     if (layout.items.length === 0) return;
 
@@ -128,7 +217,7 @@ export function useScenePanZoom(
           );
 
     cameraZRef.current = targetCameraZ;
-  });
+  }, [viewportSize.height, viewportSize.width]);
 
   useEffect(() => {
     const gallery = galleryRef.current;
@@ -172,7 +261,7 @@ export function useScenePanZoom(
     return () => {
       window.removeEventListener("wheel", handleWheel);
     };
-  }, [galleryRef, itemRefs, labelRefs]);
+  }, [galleryRef, itemRefs, labelRefs, updateScene]);
 
   useEffect(() => {
     sceneLayoutRef.current = sceneLayout;
@@ -185,5 +274,19 @@ export function useScenePanZoom(
     }
 
     updateScene(LAYOUT_ANIMATION_DURATION);
-  }, [sceneLayout, layoutMode, viewportSize]);
+  }, [sceneLayout, layoutMode, viewportSize, frameLayout, updateScene]);
+
+  useEffect(() => {
+    return () => {
+      if (activeClusterFrameRef.current !== null) {
+        cancelAnimationFrame(activeClusterFrameRef.current);
+      }
+    };
+  }, []);
+
+  return {
+    activeClusterKey,
+    clusterScrollProgress,
+    focusCluster,
+  };
 }

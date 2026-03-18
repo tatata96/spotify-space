@@ -1,5 +1,9 @@
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { GalleryItem } from "./GalleryItem";
+import {
+  SceneClusterScrollbar,
+  type SceneClusterScrollbarItem,
+} from "./SceneClusterScrollbar";
 import { type GalleryItem as GalleryItemData } from "@/types/types";
 import { useViewportSize } from "./helper/useViewportSize";
 import { useGallerySceneLayout } from "./helper/useGallerySceneLayout";
@@ -25,11 +29,37 @@ export function GalleryScene({
 
   const viewportSize = useViewportSize();
   const sceneLayout = useGallerySceneLayout(items, layoutMode, viewportSize);
+  const isClusterMode = layoutMode !== "initial";
+  const clusterScrollbarItems = useMemo<SceneClusterScrollbarItem[]>(
+    () =>
+      [...sceneLayout.labels]
+        .sort((first, second) => first.y - second.y)
+        .map((label) => ({
+          key: label.key,
+          title: label.title,
+        })),
+    [sceneLayout.labels]
+  );
 
-  useScenePanZoom(galleryRef, itemRefs, labelRefs, sceneLayout, layoutMode, viewportSize);
+  const { activeClusterKey, clusterScrollProgress, focusCluster } = useScenePanZoom(
+    galleryRef,
+    itemRefs,
+    labelRefs,
+    sceneLayout,
+    layoutMode,
+    viewportSize
+  );
 
   return (
     <div className="scene">
+      {isClusterMode ? (
+        <SceneClusterScrollbar
+          items={clusterScrollbarItems}
+          activeKey={activeClusterKey}
+          progress={clusterScrollProgress}
+          onSelect={focusCluster}
+        />
+      ) : null}
       <div ref={galleryRef} className="gallery">
         {sceneLayout.labels.map((label, index) => (
           <div
