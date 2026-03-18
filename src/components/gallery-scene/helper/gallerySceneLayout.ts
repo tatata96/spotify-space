@@ -24,23 +24,30 @@ export type LayoutMode = "category" | "id" | "initial";
 
 const CLUSTER_SIZE_CLASS = "block--small";
 
-/** Shared cluster layout options. */
-const CLUSTER_LAYOUT_SHARED = {
-  topStart: 130,
-  clusterCenterX: 182,
-  clusterCenterOffsetY: 24,
-  labelGapX: 4,
-  labelOffsetY: 0,
-} as const;
-
 /** Radius scales with sqrt(count) so cluster area grows with item count; sized so items don’t overlap. */
 const CLUSTER_RADIUS_BASE = 56;
 const CLUSTER_RADIUS_SCALE = 18;
-const CLUSTER_ROW_PADDING = 60;
-const CLUSTER_GAP_Y = 48;
+const CLUSTER_ROW_PADDING = 90;
+const CLUSTER_GAP_Y = 90;
+const CLUSTER_GAP_X = 180;
+const CLUSTER_MARGIN = 120;
+const CLUSTER_CENTER_OFFSET_Y = 24;
+const LABEL_GAP_X = 12;
+const LABEL_OFFSET_Y = 0;
+const CLUSTER_Z_PLANE = -200;
+const CLUSTER_ITEM_SIZE = 36;
+const CLUSTER_ITEM_GAP = 50;
+const CLUSTER_PACKING_DENSITY = 0.62;
 
 function clusterRadiusForCount(count: number): number {
   return CLUSTER_RADIUS_BASE + CLUSTER_RADIUS_SCALE * Math.sqrt(Math.max(1, count));
+}
+
+function clusterRadiusForCountNoOverlap(count: number): number {
+  const minDistance = CLUSTER_ITEM_SIZE + CLUSTER_ITEM_GAP;
+  const requiredRadius =
+    (minDistance / 2) * Math.sqrt(Math.max(1, count) / CLUSTER_PACKING_DENSITY);
+  return Math.max(clusterRadiusForCount(count), requiredRadius);
 }
 
 /** Single random point inside a circle (uniform over area, with jitter). */
@@ -74,6 +81,28 @@ function createScatterPoints(
   );
 }
 
+function createSunflowerPoints(
+  centerX: number,
+  centerY: number,
+  radius: number,
+  count: number
+): { x: number; y: number }[] {
+  const points: { x: number; y: number }[] = [];
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+
+  for (let i = 0; i < count; i++) {
+    const t = (i + 0.5) / Math.max(1, count);
+    const r = radius * Math.sqrt(t);
+    const theta = i * goldenAngle;
+    points.push({
+      x: centerX + Math.cos(theta) * r,
+      y: centerY + Math.sin(theta) * r,
+    });
+  }
+
+  return points;
+}
+
 export function createInitialLayout(
   items: GalleryItemData[],
   viewportSize: { width: number; height: number }
@@ -97,11 +126,7 @@ type ClusterLayoutOptions = {
   initialLayout: SceneItemMeta[];
   groupKey: (item: GalleryItemData) => string;
   labelTitle: (group: string) => string;
-  topStart: number;
-  labelGapX: number;
-  labelOffsetY: number;
-  clusterCenterX: number;
-  clusterCenterOffsetY: number;
+  viewportSize: { width: number; height: number };
   sortItems?: (items: GalleryItemData[]) => GalleryItemData[];
 };
 
@@ -110,11 +135,7 @@ function createClusterLayout({
   initialLayout,
   groupKey,
   labelTitle,
-  topStart,
-  labelGapX,
-  labelOffsetY,
-  clusterCenterX,
-  clusterCenterOffsetY,
+  viewportSize,
   sortItems,
 }: ClusterLayoutOptions): SceneLayout {
   const groupOrder: string[] = [];
@@ -138,22 +159,35 @@ function createClusterLayout({
   const layoutItems = [...initialLayout];
   const labels: SceneLabelMeta[] = [];
 
-  let currentY = topStart;
+  const safeViewportWidth = Math.max(320, viewportSize.width);
+  const clusterColumnWidth = Math.max(220, (safeViewportWidth - CLUSTER_MARGIN * 2) / 2);
+  const columnCount = Math.max(
+    1,
+    Math.floor((safeViewportWidth - CLUSTER_MARGIN * 2 + CLUSTER_GAP_X) / (clusterColumnWidth + CLUSTER_GAP_X))
+  );
+  const columnHeights = Array.from({ length: columnCount }, () => CLUSTER_MARGIN);
+  const columnCentersX = Array.from({ length: columnCount }, (_, columnIndex) => {
+    const totalWidth =
+      columnCount * clusterColumnWidth + (columnCount - 1) * CLUSTER_GAP_X;
+    const startX = (safeViewportWidth - totalWidth) / 2 + clusterColumnWidth / 2;
+    return startX + columnIndex * (clusterColumnWidth + CLUSTER_GAP_X);
+  });
 
   groupOrder.forEach((key) => {
     const groupIndexes = groups.get(key) ?? [];
     const count = groupIndexes.length;
-    const clusterRadius = clusterRadiusForCount(count);
+    const clusterRadius = clusterRadiusForCountNoOverlap(count);
     const rowHeight = 2 * clusterRadius + CLUSTER_ROW_PADDING;
 
-    const clusterCenterY = currentY + clusterCenterOffsetY;
-    const points = createScatterPoints(
-      clusterCenterX,
-      clusterCenterY,
-      clusterRadius,
-      6,
-      count
+    const targetColumnIndex = columnHeights.reduce(
+      (bestIndex, height, index, array) =>
+        height < array[bestIndex] ? index : bestIndex,
+      0
     );
+
+    const clusterCenterX = columnCentersX[targetColumnIndex];
+    const clusterCenterY = columnHeights[targetColumnIndex] + CLUSTER_CENTER_OFFSET_Y;
+    const points = createSunflowerPoints(clusterCenterX, clusterCenterY, clusterRadius, count);
 
     const maxX = Math.max(...points.map((point) => point.x));
     const averageY =
@@ -162,8 +196,8 @@ function createClusterLayout({
     labels.push({
       key,
       title: labelTitle(key),
-      x: maxX + labelGapX,
-      y: averageY + labelOffsetY,
+      x: maxX + LABEL_GAP_X,
+      y: averageY + LABEL_OFFSET_Y,
     });
 
     groupIndexes.forEach((itemIndex, groupIndex) => {
@@ -173,12 +207,12 @@ function createClusterLayout({
         ...initialLayout[itemIndex],
         x: point.x,
         y: point.y,
-        baseZ: -200 - groupIndex * 2,
+        baseZ: CLUSTER_Z_PLANE,
         sizeClass: CLUSTER_SIZE_CLASS,
       };
     });
 
-    currentY += rowHeight + CLUSTER_GAP_Y;
+    columnHeights[targetColumnIndex] += rowHeight + CLUSTER_GAP_Y;
   });
 
   return {
@@ -190,13 +224,14 @@ function createClusterLayout({
 export function createSceneLayout(
   items: GalleryItemData[],
   initialLayout: SceneItemMeta[],
-  layoutMode: LayoutMode
+  layoutMode: LayoutMode,
+  viewportSize: { width: number; height: number }
 ): SceneLayout {
   if (layoutMode === "category") {
     return createClusterLayout({
-      ...CLUSTER_LAYOUT_SHARED,
       items,
       initialLayout,
+      viewportSize,
       groupKey: (item) => item.category?.trim() || "Uncategorized",
       labelTitle: (group) => group.toUpperCase(),
     });
@@ -204,9 +239,9 @@ export function createSceneLayout(
 
   if (layoutMode === "id") {
     return createClusterLayout({
-      ...CLUSTER_LAYOUT_SHARED,
       items,
       initialLayout,
+      viewportSize,
       sortItems: (sceneItems) =>
         [...sceneItems].sort((first, second) => Number(first.id) - Number(second.id)),
       groupKey: (item) => {

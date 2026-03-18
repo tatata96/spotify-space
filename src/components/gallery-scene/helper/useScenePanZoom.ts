@@ -1,11 +1,13 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import { gsap } from "gsap";
-import type { SceneLayout } from "./gallerySceneLayout";
+import type { LayoutMode, SceneLayout } from "./gallerySceneLayout";
 
 const PAN_SPEED = 0.8;
 const ZOOM_SPEED = 90;
 const MIN_CAMERA_Z = -20000;
 const MAX_CAMERA_Z = 35000;
+const MIN_CLUSTER_CAMERA_Z = 1500;
+const MAX_CLUSTER_CAMERA_Z = 15000;
 const LAYOUT_ANIMATION_DURATION = 0.95;
 const CAMERA_ANIMATION_DURATION = 0.25;
 
@@ -13,12 +15,16 @@ export function useScenePanZoom(
   galleryRef: React.RefObject<HTMLDivElement | null>,
   itemRefs: React.RefObject<(HTMLButtonElement | null)[]>,
   labelRefs: React.RefObject<(HTMLDivElement | null)[]>,
-  sceneLayout: SceneLayout
+  sceneLayout: SceneLayout,
+  layoutMode: LayoutMode,
+  viewportSize: { width: number; height: number }
 ) {
   const cameraXRef = useRef(0);
   const cameraYRef = useRef(0);
   const cameraZRef = useRef(4000);
   const sceneLayoutRef = useRef(sceneLayout);
+  const lastLayoutModeRef = useRef<LayoutMode>(layoutMode);
+  const layoutModeRef = useRef<LayoutMode>(layoutMode);
 
   const updateScene = useEffectEvent((duration: number) => {
     const gallery = galleryRef.current;
@@ -66,6 +72,62 @@ export function useScenePanZoom(
     });
   });
 
+  const frameLayout = useEffectEvent((mode: LayoutMode) => {
+    const layout = sceneLayoutRef.current;
+    if (layout.items.length === 0) return;
+
+    const sizeByClass: Record<string, number> = {
+      "block--small": 36,
+      "block--medium": 60,
+      "block--large": 88,
+    };
+
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    layout.items.forEach((item) => {
+      const size = sizeByClass[item.sizeClass] ?? 36;
+      const half = size / 2;
+      minX = Math.min(minX, item.x - half);
+      maxX = Math.max(maxX, item.x + half);
+      minY = Math.min(minY, item.y - half);
+      maxY = Math.max(maxY, item.y + half);
+    });
+
+    layout.labels.forEach((label) => {
+      minX = Math.min(minX, label.x);
+      maxX = Math.max(maxX, label.x);
+      minY = Math.min(minY, label.y);
+      maxY = Math.max(maxY, label.y);
+    });
+
+    if (!Number.isFinite(minX) || !Number.isFinite(minY)) return;
+
+    const contentCenterX = (minX + maxX) / 2;
+    const contentCenterY = (minY + maxY) / 2;
+
+    cameraXRef.current = viewportSize.width / 2 - contentCenterX;
+    cameraYRef.current = viewportSize.height / 2 - contentCenterY;
+
+    const spanX = Math.max(1, maxX - minX);
+    const spanY = Math.max(1, maxY - minY);
+    const span = Math.max(spanX, spanY);
+
+    // Heuristic: bigger layouts start slightly farther away.
+    const targetCameraZ =
+      mode === "initial"
+        ? 4000
+        : gsap.utils.clamp(
+            MIN_CLUSTER_CAMERA_Z,
+            MAX_CLUSTER_CAMERA_Z,
+            2000 + span * 6
+          );
+
+    cameraZRef.current = targetCameraZ;
+  });
+
   useEffect(() => {
     const gallery = galleryRef.current;
     if (!gallery) return;
@@ -84,9 +146,10 @@ export function useScenePanZoom(
               : 1;
 
         cameraZRef.current += event.deltaY * deltaMultiplier * ZOOM_SPEED;
+        const isClusterMode = layoutModeRef.current !== "initial";
         cameraZRef.current = gsap.utils.clamp(
-          MIN_CAMERA_Z,
-          MAX_CAMERA_Z,
+          isClusterMode ? MIN_CLUSTER_CAMERA_Z : MIN_CAMERA_Z,
+          isClusterMode ? MAX_CLUSTER_CAMERA_Z : MAX_CAMERA_Z,
           cameraZRef.current
         );
 
@@ -111,6 +174,14 @@ export function useScenePanZoom(
 
   useEffect(() => {
     sceneLayoutRef.current = sceneLayout;
+    const isLayoutModeChange = lastLayoutModeRef.current !== layoutMode;
+    lastLayoutModeRef.current = layoutMode;
+    layoutModeRef.current = layoutMode;
+
+    if (isLayoutModeChange) {
+      frameLayout(layoutMode);
+    }
+
     updateScene(LAYOUT_ANIMATION_DURATION);
-  }, [sceneLayout]);
+  }, [sceneLayout, layoutMode, viewportSize]);
 }

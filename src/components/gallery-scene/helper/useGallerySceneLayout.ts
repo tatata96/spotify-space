@@ -18,8 +18,8 @@ export function useGallerySceneLayout(
   }, [items, viewportSize]);
 
   const sceneLayout = useMemo(() => {
-    return createSceneLayout(items, initialLayout, layoutMode);
-  }, [items, initialLayout, layoutMode]);
+    return createSceneLayout(items, initialLayout, layoutMode, viewportSize);
+  }, [items, initialLayout, layoutMode, viewportSize]);
 
   return sceneLayout;
 }

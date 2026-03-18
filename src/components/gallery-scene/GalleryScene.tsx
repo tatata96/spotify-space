@@ -26,7 +26,7 @@ export function GalleryScene({
   const viewportSize = useViewportSize();
   const sceneLayout = useGallerySceneLayout(items, layoutMode, viewportSize);
 
-  useScenePanZoom(galleryRef, itemRefs, labelRefs, sceneLayout);
+  useScenePanZoom(galleryRef, itemRefs, labelRefs, sceneLayout, layoutMode, viewportSize);
 
   return (
     <div className="scene">
