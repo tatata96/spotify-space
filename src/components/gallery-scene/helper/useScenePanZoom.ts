@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import type { LayoutMode, SceneLayout } from "./gallerySceneLayout";
 
+const ZOOM_SPEED = 6;
 const PAN_SPEED = 0.8;
-const ZOOM_SPEED = 90;
 const MIN_CAMERA_Z = -20000;
 const MAX_CAMERA_Z = 35000;
 const MIN_CLUSTER_CAMERA_Z = 1500;
@@ -229,14 +229,12 @@ export function useScenePanZoom(
       event.preventDefault();
 
       if (isPinch) {
-        const deltaMultiplier =
-          event.deltaMode === WheelEvent.DOM_DELTA_LINE
-            ? 16
-            : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-              ? window.innerHeight
-              : 1;
+        console.log("cameraZ", cameraZRef.current);
 
-        cameraZRef.current += event.deltaY * deltaMultiplier * ZOOM_SPEED;
+        const rawDelta = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? event.deltaY * 16 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? event.deltaY * window.innerHeight : event.deltaY; 
+        cameraZRef.current += rawDelta * ZOOM_SPEED;
+    
+
         const isClusterMode = layoutModeRef.current !== "initial";
         cameraZRef.current = gsap.utils.clamp(
           isClusterMode ? MIN_CLUSTER_CAMERA_Z : MIN_CAMERA_Z,
