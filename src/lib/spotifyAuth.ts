@@ -5,6 +5,7 @@ const PKCE_STATE_STORAGE_KEY = "spotify_pkce_state";
 const PKCE_REDIRECT_URI_STORAGE_KEY = "spotify_pkce_redirect_uri";
 const TOKEN_STORAGE_KEY = "spotify_auth_tokens";
 const AUTH_SCOPE = "user-library-read";
+let loginCompletionPromise: Promise<StoredSpotifyTokens | null> | null = null;
 
 type StoredSpotifyTokens = {
   accessToken: string;
@@ -100,6 +101,13 @@ const clearPkceSessionStorage = () => {
 const getUriOriginAndPath = (uri: string) => {
   const parsed = new URL(uri);
   return `${parsed.origin}${parsed.pathname}`;
+};
+
+const clearSpotifyCallbackParams = (url: URL) => {
+  url.searchParams.delete("code");
+  url.searchParams.delete("state");
+  url.searchParams.delete("error");
+  window.history.replaceState({}, document.title, url.toString());
 };
 
 export const getSpotifyClientId = () => {
@@ -210,65 +218,75 @@ export const beginSpotifyLogin = async () => {
 };
 
 export const maybeCompleteSpotifyLogin = async () => {
-  const currentUrl = new URL(window.location.href);
-  const code = currentUrl.searchParams.get("code");
-  const returnedState = currentUrl.searchParams.get("state");
-  const error = currentUrl.searchParams.get("error");
-
-  if (error) {
-    currentUrl.searchParams.delete("error");
-    currentUrl.searchParams.delete("state");
-    window.history.replaceState({}, document.title, currentUrl.toString());
-    throw new Error(`Spotify authorization failed: ${error}`);
+  if (loginCompletionPromise) {
+    return await loginCompletionPromise;
   }
 
-  if (!code) {
-    return loadStoredTokens();
-  }
+  loginCompletionPromise = (async () => {
+    const currentUrl = new URL(window.location.href);
+    const code = currentUrl.searchParams.get("code");
+    const returnedState = currentUrl.searchParams.get("state");
+    const error = currentUrl.searchParams.get("error");
 
-  const storedState = window.sessionStorage.getItem(PKCE_STATE_STORAGE_KEY);
-  const codeVerifier = window.sessionStorage.getItem(PKCE_VERIFIER_STORAGE_KEY);
-  const storedRedirectUri = window.sessionStorage.getItem(PKCE_REDIRECT_URI_STORAGE_KEY);
-  const configuredRedirectUri = getConfiguredRedirectUri();
+    if (error) {
+      clearSpotifyCallbackParams(currentUrl);
+      throw new Error(`Spotify authorization failed: ${error}`);
+    }
 
-  if (!returnedState || !storedState || returnedState !== storedState) {
-    clearPkceSessionStorage();
-    throw new Error("Spotify authorization state mismatch. Please try signing in again.");
-  }
+    if (!code) {
+      return loadStoredTokens();
+    }
 
-  if (!codeVerifier) {
-    clearPkceSessionStorage();
-    throw new Error("Missing PKCE code verifier. Please try signing in again.");
-  }
+    const storedState = window.sessionStorage.getItem(PKCE_STATE_STORAGE_KEY);
+    const codeVerifier = window.sessionStorage.getItem(PKCE_VERIFIER_STORAGE_KEY);
+    const storedRedirectUri = window.sessionStorage.getItem(PKCE_REDIRECT_URI_STORAGE_KEY);
+    const configuredRedirectUri = getConfiguredRedirectUri();
 
-  if (!storedRedirectUri || storedRedirectUri !== configuredRedirectUri) {
-    clearPkceSessionStorage();
-    throw new Error(
-      "Spotify redirect URI changed during sign-in. Use the same 127.0.0.1 redirect URI and try again.",
+    if (!returnedState || !storedState || returnedState !== storedState) {
+      clearPkceSessionStorage();
+      throw new Error("Spotify authorization state mismatch. Please try signing in again.");
+    }
+
+    if (!codeVerifier) {
+      clearPkceSessionStorage();
+      throw new Error("Missing PKCE code verifier. Please try signing in again.");
+    }
+
+    if (!storedRedirectUri || storedRedirectUri !== configuredRedirectUri) {
+      clearPkceSessionStorage();
+      throw new Error(
+        "Spotify redirect URI changed during sign-in. Use the same 127.0.0.1 redirect URI and try again.",
+      );
+    }
+
+    if (getUriOriginAndPath(currentUrl.toString()) !== getUriOriginAndPath(configuredRedirectUri)) {
+      clearPkceSessionStorage();
+      throw new Error("Spotify callback URI does not match VITE_SPOTIFY_REDIRECT_URI.");
+    }
+
+    // Remove the one-time callback params immediately so duplicate effect runs
+    // do not attempt to exchange the same authorization code a second time.
+    clearSpotifyCallbackParams(currentUrl);
+
+    const tokenResponse = await postSpotifyToken(
+      new URLSearchParams({
+        client_id: getSpotifyClientId(),
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: storedRedirectUri,
+        code_verifier: codeVerifier,
+      }),
     );
-  }
 
-  if (getUriOriginAndPath(currentUrl.toString()) !== getUriOriginAndPath(configuredRedirectUri)) {
     clearPkceSessionStorage();
-    throw new Error("Spotify callback URI does not match VITE_SPOTIFY_REDIRECT_URI.");
+    return saveTokens(tokenResponse);
+  })();
+
+  try {
+    return await loginCompletionPromise;
+  } finally {
+    loginCompletionPromise = null;
   }
-
-  const tokenResponse = await postSpotifyToken(
-    new URLSearchParams({
-      client_id: getSpotifyClientId(),
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: storedRedirectUri,
-      code_verifier: codeVerifier,
-    }),
-  );
-
-  clearPkceSessionStorage();
-  currentUrl.searchParams.delete("code");
-  currentUrl.searchParams.delete("state");
-  window.history.replaceState({}, document.title, currentUrl.toString());
-
-  return saveTokens(tokenResponse);
 };
 
 export const refreshSpotifyAccessToken = async (tokens: StoredSpotifyTokens) => {
