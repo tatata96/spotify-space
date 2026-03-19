@@ -15,12 +15,14 @@ export type { LayoutMode };
 export type GallerySceneProps = {
   items: GalleryItemData[];
   layoutMode: LayoutMode;
+  activeItemId?: string | null;
   onItemClick?: (item: GalleryItemData) => void;
 };
 
 export function GalleryScene({
   items,
   layoutMode,
+  activeItemId,
   onItemClick,
 }: GallerySceneProps) {
   const galleryRef = useRef<HTMLDivElement | null>(null);
@@ -76,6 +78,7 @@ export function GalleryScene({
           <GalleryItem
             key={item.id}
             item={item}
+            isActive={item.id === activeItemId}
             sizeClass={sceneLayout.items[index]?.sizeClass ?? "block--small"}
             onClick={onItemClick}
             itemRef={(element) => {

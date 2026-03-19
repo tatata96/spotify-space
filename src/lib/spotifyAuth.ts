@@ -4,7 +4,9 @@ const PKCE_VERIFIER_STORAGE_KEY = "spotify_pkce_code_verifier";
 const PKCE_STATE_STORAGE_KEY = "spotify_pkce_state";
 const PKCE_REDIRECT_URI_STORAGE_KEY = "spotify_pkce_redirect_uri";
 const TOKEN_STORAGE_KEY = "spotify_auth_tokens";
-const AUTH_SCOPE = "user-library-read";
+const AUTH_SCOPE = [
+  "user-library-read",
+].join(" ");
 let loginCompletionPromise: Promise<StoredSpotifyTokens | null> | null = null;
 
 type StoredSpotifyTokens = {

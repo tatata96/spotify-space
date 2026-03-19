@@ -24,7 +24,7 @@ export function SpotifyLoginScreen({
         <p className="spotify-auth-card__eyebrow">Spotify Space</p>
         <h1 className="spotify-auth-card__title">Sign in to load your liked songs.</h1>
         <p className="spotify-auth-card__copy">
-          This app uses Spotify Authorization Code with PKCE and requests only the
+          This app uses Spotify Authorization Code with PKCE and requests the
           <code> {scope} </code>
           scope.
         </p>
@@ -54,12 +54,6 @@ export function SpotifyLoginScreen({
             {isLoading ? "Checking Spotify session..." : "Continue with Spotify"}
           </button>
         )}
-
-        <p className="spotify-auth-card__meta">
-          Configure <code>VITE_SPOTIFY_CLIENT_ID</code> and an allowed
-          <code> VITE_SPOTIFY_REDIRECT_URI </code>
-          before signing in.
-        </p>
       </section>
     </main>
   );

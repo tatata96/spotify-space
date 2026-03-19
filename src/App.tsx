@@ -3,11 +3,14 @@ import { useState } from "react";
 import { GalleryScene, type LayoutMode } from "@/components/gallery-scene/GalleryScene";
 import { GalleryFilters } from "@/components/gallery-scene/filters/GalleryFilters";
 import { SpotifyLoginScreen } from "@/components/auth/SpotifyLoginScreen";
+import { SpotifyEmbedPlayer } from "@/components/spotify/SpotifyEmbedPlayer";
 import { useSpotifyAuth } from "@/hooks/useSpotifyAuth";
 import { useSpotifyGallery } from "@/hooks/useSpotifyGallery";
+import type { GalleryItem } from "@/types/types";
 
 function App() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("initial");
+  const [currentTrack, setCurrentTrack] = useState<GalleryItem | null>(null);
   const { errorMessage, isLoading, login, logout, scope, tokens } = useSpotifyAuth();
   const isSignedIn = Boolean(tokens);
   const {
@@ -20,6 +23,14 @@ function App() {
     enabled: isSignedIn,
     accessToken: tokens?.accessToken,
   });
+
+  const handleItemClick = (item: GalleryItem) => {
+    if (!item.spotifyTrackUri) {
+      return;
+    }
+
+    setCurrentTrack(item);
+  };
 
   if (!isSignedIn) {
     return (
@@ -83,7 +94,13 @@ function App() {
       <div className="app-shell__auth-indicator">
         <span>Spotify connected</span>
         <span>{galleryItems.length} liked songs loaded</span>
-        <button onClick={logout} type="button">
+        <button
+          onClick={() => {
+            setCurrentTrack(null);
+            logout();
+          }}
+          type="button"
+        >
           Disconnect
         </button>
       </div>
@@ -94,10 +111,17 @@ function App() {
       <GalleryScene
         items={galleryItems}
         layoutMode={layoutMode}
+        activeItemId={currentTrack?.id ?? null}
         onItemClick={(item) => {
-          console.log("Clicked item:", item);
+          handleItemClick(item);
         }}
       />
+      {currentTrack?.spotifyTrackUri ? (
+        <SpotifyEmbedPlayer
+          title={currentTrack.title ?? "Selected track"}
+          trackUri={currentTrack.spotifyTrackUri}
+        />
+      ) : null}
     </div>
   );
 }

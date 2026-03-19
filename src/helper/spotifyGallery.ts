@@ -24,12 +24,14 @@ export type SpotifyGalleryLoadProgress = {
 
 export function mapSpotifyTracksToGalleryItems(savedTracks: SpotifySavedTrackItem[]): GalleryItem[] {
   return savedTracks.map((savedTrack, index) => ({
-    id: String(index + 1),
+    id: savedTrack.track.id ?? String(index + 1),
     imageUrl: savedTrack.track.album.images[0]?.url ?? FALLBACK_COVER_DATA_URL,
+    title: savedTrack.track.name,
     category:
       savedTrack.track.artists[0]?.name?.trim() ||
       savedTrack.track.album.name.trim() ||
       "Uncategorized",
+    spotifyTrackUri: savedTrack.track.uri,
   }));
 }
 
