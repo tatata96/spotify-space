@@ -1,7 +1,7 @@
 import "./App.css";
 import { useState } from "react";
 import { GalleryScene, type LayoutMode } from "@/components/gallery-scene/GalleryScene";
-import { GalleryFilters } from "@/components/gallery-scene/GalleryFilters";
+import { GalleryFilters } from "@/components/gallery-scene/filters/GalleryFilters";
 import { GALLERY_ITEMS } from "@/data/galleryItems";
 
 function App() {

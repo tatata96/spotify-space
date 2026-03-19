@@ -3,7 +3,7 @@ import { GalleryItem } from "./GalleryItem";
 import {
   SceneClusterScrollbar,
   type SceneClusterScrollbarItem,
-} from "./SceneClusterScrollbar";
+} from "./scrollbar/SceneClusterScrollbar";
 import { type GalleryItem as GalleryItemData } from "@/types/types";
 import { useViewportSize } from "./helper/useViewportSize";
 import { useGallerySceneLayout } from "./helper/useGallerySceneLayout";

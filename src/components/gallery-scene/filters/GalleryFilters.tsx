@@ -1,5 +1,5 @@
-import type { LayoutMode } from "./GalleryScene";
-import "./GalleryFilters.css";
+import type { LayoutMode } from "../GalleryScene";
+import "./gallery_filters.css";
 
 export type GalleryFiltersProps = {
   layoutMode: LayoutMode;

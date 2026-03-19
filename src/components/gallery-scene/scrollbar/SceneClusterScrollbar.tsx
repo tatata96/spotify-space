@@ -1,4 +1,4 @@
-import "./SceneClusterScrollbar.css";
+import "./scene_cluster_scrollbar.css";
 
 export type SceneClusterScrollbarItem = {
   key: string;
