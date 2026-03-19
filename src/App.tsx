@@ -15,6 +15,7 @@ function App() {
   const isSignedIn = Boolean(tokens);
   const {
     items: galleryItems,
+    facetsByKey,
     likedSongsCount,
     totalLikedSongs,
     isLoading: isLibraryLoading,
@@ -110,6 +111,7 @@ function App() {
       />
       <GalleryScene
         items={galleryItems}
+        facetsByKey={facetsByKey}
         layoutMode={layoutMode}
         activeItemId={currentTrack?.id ?? null}
         onItemClick={(item) => {

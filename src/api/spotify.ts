@@ -1,5 +1,4 @@
 import { getValidSpotifyAccessToken, parseRetryAfterMs } from "@/lib/spotifyAuth";
-import useSWR, { type SWRConfiguration } from "swr";
 
 const baseUrl = "https://api.spotify.com/v1";
 
@@ -36,6 +35,7 @@ export type SpotifySavedTrackItem = {
       id: string | null;
       name: string;
       uri: string;
+      release_date?: string;
       images: Array<{
         url: string;
         width: number | null;
@@ -186,35 +186,3 @@ export async function verifySpotifyConnection(): Promise<boolean> {
   await spotifyFetch("/me");
   return true;
 }
-
-type UseSpotifyLikedSongsOptions = {
-  enabled?: boolean;
-  limit?: number;
-  offset?: number;
-};
-
-export function useSpotifyLikedSongs(
-  options: UseSpotifyLikedSongsOptions = {},
-  swrOpts?: SWRConfiguration<SpotifySavedTracksResponse, SpotifyApiError>,
-) {
-  const { enabled = true, limit = 20, offset = 0 } = options;
-  const key = enabled ? getSpotifyLikedSongsPath(limit, offset) : null;
-
-  return useSWR<SpotifySavedTracksResponse, SpotifyApiError>(key, spotifyFetcher, {
-    ...swrOpts,
-    onErrorRetry: (error, _key, _config, revalidate, revalidateOpts) => {
-      if (error.status === 401 || error.status === 403) {
-        return;
-      }
-
-      if (revalidateOpts.retryCount >= 3) {
-        return;
-      }
-
-      const retryAfterMs = error.retryAfterMs ?? parseRetryAfterMs(null, revalidateOpts.retryCount);
-      window.setTimeout(() => {
-        void revalidate(revalidateOpts);
-      }, retryAfterMs);
-    },
-  });
-} 

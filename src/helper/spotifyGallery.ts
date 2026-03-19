@@ -1,5 +1,5 @@
 import { getSpotifyLikedSongs, type SpotifySavedTrackItem } from "@/api/spotify";
-import type { GalleryItem } from "@/types/types";
+import type { GalleryItem, GalleryItemFacetsByKey } from "@/types/types";
 
 const FALLBACK_COVER_DATA_URL =
   "data:image/svg+xml;charset=UTF-8," +
@@ -22,22 +22,48 @@ export type SpotifyGalleryLoadProgress = {
   total: number | null;
 };
 
-export function mapSpotifyTracksToGalleryItems(savedTracks: SpotifySavedTrackItem[]): GalleryItem[] {
-  return savedTracks.map((savedTrack, index) => ({
-    id: savedTrack.track.id ?? String(index + 1),
-    imageUrl: savedTrack.track.album.images[0]?.url ?? FALLBACK_COVER_DATA_URL,
-    title: savedTrack.track.name,
-    category:
-      savedTrack.track.artists[0]?.name?.trim() ||
-      savedTrack.track.album.name.trim() ||
-      "Uncategorized",
-    spotifyTrackUri: savedTrack.track.uri,
-  }));
+export type SpotifyGalleryPayload = {
+  items: GalleryItem[];
+  facetsByKey: GalleryItemFacetsByKey;
+};
+
+function getFacetKey(item: GalleryItem): string {
+  return item.spotifyTrackUri ?? item.id;
+}
+
+export function mapSpotifyTracksToGalleryItems(savedTracks: SpotifySavedTrackItem[]): SpotifyGalleryPayload {
+  const facetsByKey: GalleryItemFacetsByKey = {};
+  const items = savedTracks.map((savedTrack, index) => {
+    const item: GalleryItem = {
+      id: savedTrack.track.id ?? String(index + 1),
+      imageUrl: savedTrack.track.album.images[0]?.url ?? FALLBACK_COVER_DATA_URL,
+      title: savedTrack.track.name,
+      category:
+        savedTrack.track.artists[0]?.name?.trim() ||
+        savedTrack.track.album.name.trim() ||
+        "Uncategorized",
+      spotifyTrackUri: savedTrack.track.uri,
+    };
+
+    facetsByKey[getFacetKey(item)] = {
+      spotify: {
+        addedAt: savedTrack.added_at,
+        releaseDate: savedTrack.track.album.release_date,
+      },
+    };
+
+    return item;
+  });
+
+  return {
+    items,
+    facetsByKey,
+  };
 }
 
 export async function loadSpotifyGalleryItems(
   onProgress?: (progress: SpotifyGalleryLoadProgress) => void,
-): Promise<GalleryItem[]> {
+): Promise<SpotifyGalleryPayload> {
   const allTracks: SpotifySavedTrackItem[] = [];
   let offset = 0;
 

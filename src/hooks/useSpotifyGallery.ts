@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import type { GalleryItem } from "@/types/types";
+import type { GalleryItem, GalleryItemFacetsByKey } from "@/types/types";
 import { loadSpotifyGalleryItems } from "@/helper/spotifyGallery";
 
 const SPOTIFY_GALLERY_CACHE_KEY = "spotify_gallery_items";
@@ -13,6 +13,7 @@ type UseSpotifyGalleryOptions = {
 
 type SpotifyGalleryState = {
   items: GalleryItem[];
+  facetsByKey: GalleryItemFacetsByKey;
   likedSongsCount: number;
   totalLikedSongs: number | null;
   isLoading: boolean;
@@ -21,6 +22,7 @@ type SpotifyGalleryState = {
 
 type SpotifyGalleryCacheEntry = {
   items: GalleryItem[];
+  facetsByKey: GalleryItemFacetsByKey;
   totalLikedSongs: number;
   cachedAt: number;
 };
@@ -33,21 +35,34 @@ function loadCachedSpotifyGallery(): SpotifyGalleryCacheEntry | null {
 
   try {
     const parsed = JSON.parse(rawValue) as SpotifyGalleryCacheEntry;
-    if (!Array.isArray(parsed.items) || typeof parsed.totalLikedSongs !== "number" || typeof parsed.cachedAt !== "number") {
+    if (
+      !Array.isArray(parsed.items) ||
+      typeof parsed.totalLikedSongs !== "number" ||
+      typeof parsed.cachedAt !== "number"
+    ) {
       window.localStorage.removeItem(SPOTIFY_GALLERY_CACHE_KEY);
       return null;
     }
 
-    return parsed;
+    const facetsByKey =
+      parsed.facetsByKey && typeof parsed.facetsByKey === "object"
+        ? parsed.facetsByKey
+        : {};
+
+    return {
+      ...parsed,
+      facetsByKey,
+    };
   } catch {
     window.localStorage.removeItem(SPOTIFY_GALLERY_CACHE_KEY);
     return null;
   }
 }
 
-function saveCachedSpotifyGallery(items: GalleryItem[]) {
+function saveCachedSpotifyGallery(items: GalleryItem[], facetsByKey: GalleryItemFacetsByKey) {
   const cacheEntry: SpotifyGalleryCacheEntry = {
     items,
+    facetsByKey,
     totalLikedSongs: items.length,
     cachedAt: Date.now(),
   };
@@ -61,6 +76,7 @@ function clearCachedSpotifyGallery() {
 
 export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOptions): SpotifyGalleryState {
   const [items, setItems] = useState<GalleryItem[]>([]);
+  const [facetsByKey, setFacetsByKey] = useState<GalleryItemFacetsByKey>({});
   const [likedSongsCount, setLikedSongsCount] = useState(0);
   const [totalLikedSongs, setTotalLikedSongs] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -69,6 +85,7 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
   useEffect(() => {
     if (!enabled) {
       setItems([]);
+      setFacetsByKey({});
       setLikedSongsCount(0);
       setTotalLikedSongs(null);
       setIsLoading(false);
@@ -88,6 +105,7 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
 
       if (cachedGallery) {
         setItems(cachedGallery.items);
+        setFacetsByKey(cachedGallery.facetsByKey ?? {});
         setLikedSongsCount(cachedGallery.items.length);
         setTotalLikedSongs(cachedGallery.totalLikedSongs);
       }
@@ -100,7 +118,7 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
       setIsLoading(true);
 
       try {
-        const nextItems = await loadSpotifyGalleryItems(({ loaded, total }) => {
+        const nextGallery = await loadSpotifyGalleryItems(({ loaded, total }) => {
           if (isCancelled) {
             return;
           }
@@ -113,10 +131,11 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
           return;
         }
 
-        setItems(nextItems);
-        setLikedSongsCount(nextItems.length);
-        setTotalLikedSongs((currentTotal) => currentTotal ?? nextItems.length);
-        saveCachedSpotifyGallery(nextItems);
+        setItems(nextGallery.items);
+        setFacetsByKey(nextGallery.facetsByKey);
+        setLikedSongsCount(nextGallery.items.length);
+        setTotalLikedSongs((currentTotal) => currentTotal ?? nextGallery.items.length);
+        saveCachedSpotifyGallery(nextGallery.items, nextGallery.facetsByKey);
       } catch (error) {
         if (isCancelled) {
           return;
@@ -124,6 +143,7 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
 
         if (!cachedGallery) {
           setItems([]);
+          setFacetsByKey({});
           setErrorMessage(error instanceof Error ? error.message : "Unable to load Spotify liked songs.");
         }
       } finally {
@@ -142,6 +162,7 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
 
   return {
     items,
+    facetsByKey,
     likedSongsCount,
     totalLikedSongs,
     isLoading,

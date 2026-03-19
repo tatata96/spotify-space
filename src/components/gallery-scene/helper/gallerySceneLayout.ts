@@ -1,5 +1,9 @@
 import { gsap } from "gsap";
-import { type GalleryItem as GalleryItemData } from "@/types/types";
+import { getYearMonthKeyFromIso, parseIsoDateToTimestamp, parseReleaseYear } from "@/lib/dateTime";
+import {
+  type GalleryItem as GalleryItemData,
+  type GalleryItemFacetsByKey,
+} from "@/types/types";
 
 export type SceneItemMeta = {
   x: number;
@@ -21,7 +25,7 @@ export type SceneLayout = {
   labels: SceneLabelMeta[];
 };
 
-export type LayoutMode = "category" | "id" | "initial";
+export type LayoutMode = "trackName" | "addedAt" | "releaseYear" | "initial";
 
 const CLUSTER_SIZE_CLASS = "block--small";
 
@@ -124,15 +128,48 @@ export function createInitialLayout(
 
 type ClusterLayoutOptions = {
   items: GalleryItemData[];
+  facetsByKey: GalleryItemFacetsByKey;
   initialLayout: SceneItemMeta[];
-  groupKey: (item: GalleryItemData) => string;
+  groupKey: (item: GalleryItemData, facetsByKey: GalleryItemFacetsByKey) => string;
   labelTitle: (group: string) => string;
   viewportSize: { width: number; height: number };
-  sortItems?: (items: GalleryItemData[]) => GalleryItemData[];
+  sortItems?: (items: GalleryItemData[], facetsByKey: GalleryItemFacetsByKey) => GalleryItemData[];
 };
+
+const UNKNOWN_ADDED_DATE_GROUP = "Unknown Added Date";
+const UNKNOWN_RELEASE_YEAR_GROUP = "Unknown Release Year";
+
+function getFacetKey(item: GalleryItemData): string {
+  return item.spotifyTrackUri ?? item.id;
+}
+
+function getSpotifyAddedAt(item: GalleryItemData, facetsByKey: GalleryItemFacetsByKey): string | null {
+  return facetsByKey[getFacetKey(item)]?.spotify?.addedAt ?? null;
+}
+
+function getSpotifyReleaseDate(item: GalleryItemData, facetsByKey: GalleryItemFacetsByKey): string | null {
+  return facetsByKey[getFacetKey(item)]?.spotify?.releaseDate ?? null;
+}
+
+function normalizedTrackName(value?: string): string {
+  return (value ?? "").trim().toLocaleLowerCase();
+}
+
+function trackNameGroupKey(item: GalleryItemData): string {
+  const firstCharacter = item.title?.trim().charAt(0).toLocaleUpperCase() ?? "";
+  return /^[A-Z]$/.test(firstCharacter) ? firstCharacter : "#";
+}
+
+function compareNullableNumbersDescending(first: number | null, second: number | null): number {
+  if (first === null && second === null) return 0;
+  if (first === null) return 1;
+  if (second === null) return -1;
+  return second - first;
+}
 
 function createClusterLayout({
   items,
+  facetsByKey,
   initialLayout,
   groupKey,
   labelTitle,
@@ -142,10 +179,10 @@ function createClusterLayout({
   const groupOrder: string[] = [];
   const groups = new Map<string, number[]>();
   const itemIndexById = new Map(items.map((item, index) => [item.id, index]));
-  const orderedItems = sortItems ? sortItems(items) : items;
+  const orderedItems = sortItems ? sortItems(items, facetsByKey) : items;
 
   orderedItems.forEach((item) => {
-    const key = groupKey(item);
+    const key = groupKey(item, facetsByKey);
     const index = itemIndexById.get(item.id);
     if (index === undefined) return;
 
@@ -225,32 +262,76 @@ function createClusterLayout({
 
 export function createSceneLayout(
   items: GalleryItemData[],
+  facetsByKey: GalleryItemFacetsByKey,
   initialLayout: SceneItemMeta[],
   layoutMode: LayoutMode,
   viewportSize: { width: number; height: number }
 ): SceneLayout {
-  if (layoutMode === "category") {
+  if (layoutMode === "trackName") {
     return createClusterLayout({
       items,
-      initialLayout,
-      viewportSize,
-      groupKey: (item) => item.category?.trim() || "Uncategorized",
-      labelTitle: (group) => group.toUpperCase(),
-    });
-  }
-
-  if (layoutMode === "id") {
-    return createClusterLayout({
-      items,
+      facetsByKey,
       initialLayout,
       viewportSize,
       sortItems: (sceneItems) =>
-        [...sceneItems].sort((first, second) => Number(first.id) - Number(second.id)),
-      groupKey: (item) => {
-        const bucketStart = Math.floor((Number(item.id) - 1) / 25) * 25 + 1;
-        const bucketEnd = bucketStart + 24;
+        [...sceneItems].sort((first, second) => {
+          const titleComparison = normalizedTrackName(first.title).localeCompare(
+            normalizedTrackName(second.title)
+          );
+          if (titleComparison !== 0) {
+            return titleComparison;
+          }
 
-        return `${String(bucketStart).padStart(3, "0")}-${String(bucketEnd).padStart(3, "0")}`;
+          return first.id.localeCompare(second.id);
+        }),
+      groupKey: (item) => trackNameGroupKey(item),
+      labelTitle: (group) => group,
+    });
+  }
+
+  if (layoutMode === "addedAt") {
+    return createClusterLayout({
+      items,
+      facetsByKey,
+      initialLayout,
+      viewportSize,
+      sortItems: (sceneItems, facets) =>
+        [...sceneItems].sort((first, second) => {
+          const firstTimestamp = parseIsoDateToTimestamp(getSpotifyAddedAt(first, facets));
+          const secondTimestamp = parseIsoDateToTimestamp(getSpotifyAddedAt(second, facets));
+          const timestampComparison = compareNullableNumbersDescending(firstTimestamp, secondTimestamp);
+          if (timestampComparison !== 0) {
+            return timestampComparison;
+          }
+
+          return normalizedTrackName(first.title).localeCompare(normalizedTrackName(second.title));
+        }),
+      groupKey: (item, facets) =>
+        getYearMonthKeyFromIso(getSpotifyAddedAt(item, facets)) ?? UNKNOWN_ADDED_DATE_GROUP,
+      labelTitle: (group) => group,
+    });
+  }
+
+  if (layoutMode === "releaseYear") {
+    return createClusterLayout({
+      items,
+      facetsByKey,
+      initialLayout,
+      viewportSize,
+      sortItems: (sceneItems, facets) =>
+        [...sceneItems].sort((first, second) => {
+          const firstYear = parseReleaseYear(getSpotifyReleaseDate(first, facets));
+          const secondYear = parseReleaseYear(getSpotifyReleaseDate(second, facets));
+          const yearComparison = compareNullableNumbersDescending(firstYear, secondYear);
+          if (yearComparison !== 0) {
+            return yearComparison;
+          }
+
+          return normalizedTrackName(first.title).localeCompare(normalizedTrackName(second.title));
+        }),
+      groupKey: (item, facets) => {
+        const releaseYear = parseReleaseYear(getSpotifyReleaseDate(item, facets));
+        return releaseYear !== null ? String(releaseYear) : UNKNOWN_RELEASE_YEAR_GROUP;
       },
       labelTitle: (group) => group,
     });
