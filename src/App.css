@@ -45,19 +45,35 @@ button {
   background-repeat: no-repeat;
   transform-style: preserve-3d;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  transition: width 0.45s ease, height 0.45s ease, box-shadow 0.3s ease;
 }
 
 .block--small {
-  width: 160px;
-  height: 100px;
+  width: 36px;
+  height: 36px;
 }
 
 .block--medium {
-  width: 220px;
-  height: 140px;
+  width: 60px;
+  height: 60px;
 }
 
 .block--large {
-  width: 320px;
-  height: 200px;
+  width: 88px;
+  height: 88px;
+}
+
+.cluster-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: 320px;
+  color: rgba(75, 75, 75, 0.24);
+  font-size: clamp(1.15rem, 2vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 0.94;
+  pointer-events: none;
+  user-select: none;
+  white-space: pre-wrap;
 }
