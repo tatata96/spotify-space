@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import type { GalleryItem } from "@/types/types";
 import { loadSpotifyGalleryItems } from "@/helper/spotifyGallery";
 
+const SPOTIFY_GALLERY_CACHE_KEY = "spotify_gallery_items";
+const SPOTIFY_GALLERY_CACHE_TTL_MS = 1000 * 60 * 10;
+
 type UseSpotifyGalleryOptions = {
   enabled: boolean;
   accessToken?: string;
@@ -15,6 +18,46 @@ type SpotifyGalleryState = {
   isLoading: boolean;
   errorMessage: string | null;
 };
+
+type SpotifyGalleryCacheEntry = {
+  items: GalleryItem[];
+  totalLikedSongs: number;
+  cachedAt: number;
+};
+
+function loadCachedSpotifyGallery(): SpotifyGalleryCacheEntry | null {
+  const rawValue = window.localStorage.getItem(SPOTIFY_GALLERY_CACHE_KEY);
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as SpotifyGalleryCacheEntry;
+    if (!Array.isArray(parsed.items) || typeof parsed.totalLikedSongs !== "number" || typeof parsed.cachedAt !== "number") {
+      window.localStorage.removeItem(SPOTIFY_GALLERY_CACHE_KEY);
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    window.localStorage.removeItem(SPOTIFY_GALLERY_CACHE_KEY);
+    return null;
+  }
+}
+
+function saveCachedSpotifyGallery(items: GalleryItem[]) {
+  const cacheEntry: SpotifyGalleryCacheEntry = {
+    items,
+    totalLikedSongs: items.length,
+    cachedAt: Date.now(),
+  };
+
+  window.localStorage.setItem(SPOTIFY_GALLERY_CACHE_KEY, JSON.stringify(cacheEntry));
+}
+
+function clearCachedSpotifyGallery() {
+  window.localStorage.removeItem(SPOTIFY_GALLERY_CACHE_KEY);
+}
 
 export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOptions): SpotifyGalleryState {
   const [items, setItems] = useState<GalleryItem[]>([]);
@@ -30,14 +73,31 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
       setTotalLikedSongs(null);
       setIsLoading(false);
       setErrorMessage(null);
+      clearCachedSpotifyGallery();
       return;
     }
 
     let isCancelled = false;
 
     const loadGallery = async () => {
-      setIsLoading(true);
       setErrorMessage(null);
+
+      const cachedGallery = loadCachedSpotifyGallery();
+      const isCacheFresh =
+        cachedGallery !== null && Date.now() - cachedGallery.cachedAt < SPOTIFY_GALLERY_CACHE_TTL_MS;
+
+      if (cachedGallery) {
+        setItems(cachedGallery.items);
+        setLikedSongsCount(cachedGallery.items.length);
+        setTotalLikedSongs(cachedGallery.totalLikedSongs);
+      }
+
+      if (isCacheFresh) {
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
 
       try {
         const nextItems = await loadSpotifyGalleryItems(({ loaded, total }) => {
@@ -56,13 +116,16 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
         setItems(nextItems);
         setLikedSongsCount(nextItems.length);
         setTotalLikedSongs((currentTotal) => currentTotal ?? nextItems.length);
+        saveCachedSpotifyGallery(nextItems);
       } catch (error) {
         if (isCancelled) {
           return;
         }
 
-        setItems([]);
-        setErrorMessage(error instanceof Error ? error.message : "Unable to load Spotify liked songs.");
+        if (!cachedGallery) {
+          setItems([]);
+          setErrorMessage(error instanceof Error ? error.message : "Unable to load Spotify liked songs.");
+        }
       } finally {
         if (!isCancelled) {
           setIsLoading(false);
