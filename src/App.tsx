@@ -4,13 +4,22 @@ import { GalleryScene, type LayoutMode } from "@/components/gallery-scene/Galler
 import { GalleryFilters } from "@/components/gallery-scene/filters/GalleryFilters";
 import { SpotifyLoginScreen } from "@/components/auth/SpotifyLoginScreen";
 import { SpotifyEmbedPlayer } from "@/components/spotify/SpotifyEmbedPlayer";
+import { PlaylistButton } from "@/components/playlist/PlaylistButton";
+import { PlaylistPickerModal } from "@/components/playlist/PlaylistPickerModal";
+import { PlaylistModeFrame } from "@/components/playlist/PlaylistModeFrame";
+import { Toast } from "@/components/playlist/Toast";
 import { useSpotifyAuth } from "@/hooks/useSpotifyAuth";
 import { useSpotifyGallery } from "@/hooks/useSpotifyGallery";
+import { addTrackToPlaylist, type SpotifyPlaylist } from "@/api/spotify";
 import type { GalleryItem } from "@/types/types";
 
 function App() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("initial");
   const [currentTrack, setCurrentTrack] = useState<GalleryItem | null>(null);
+  const [isPlaylistMode, setIsPlaylistMode] = useState(false);
+  const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+  const [selectedPlaylist, setSelectedPlaylist] = useState<SpotifyPlaylist | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const { errorMessage, isLoading, login, logout, scope, tokens } = useSpotifyAuth();
   const isSignedIn = Boolean(tokens);
   const {
@@ -33,7 +42,29 @@ function App() {
     setCurrentTrack(item);
   };
 
-  if (!isSignedIn) {
+  const handleItemDoubleClick = (item: GalleryItem) => {
+    if (!isPlaylistMode || !selectedPlaylist || !item.spotifyTrackUri) return;
+    addTrackToPlaylist(selectedPlaylist.id, item.spotifyTrackUri)
+      .then(() => setToastMessage(`Added to ${selectedPlaylist.name}`))
+      .catch(() => setToastMessage("Failed to add — try again"));
+  };
+
+  const handlePlaylistButtonClick = () => {
+    if (isPlaylistMode) {
+      setIsPlaylistMode(false);
+      setSelectedPlaylist(null);
+    } else {
+      setShowPlaylistModal(true);
+    }
+  };
+
+  const handlePlaylistSelect = (playlist: SpotifyPlaylist) => {
+    setSelectedPlaylist(playlist);
+    setShowPlaylistModal(false);
+    setIsPlaylistMode(true);
+  };
+
+  if (!tokens) {
     return (
       <SpotifyLoginScreen
         errorMessage={errorMessage}
@@ -105,6 +136,7 @@ function App() {
           Disconnect
         </button>
       </div>
+      <PlaylistButton isActive={isPlaylistMode} onClick={handlePlaylistButtonClick} />
       <GalleryFilters
         layoutMode={layoutMode}
         onLayoutModeChange={setLayoutMode}
@@ -114,15 +146,24 @@ function App() {
         facetsByKey={facetsByKey}
         layoutMode={layoutMode}
         activeItemId={currentTrack?.id ?? null}
-        onItemClick={(item) => {
-          handleItemClick(item);
-        }}
+        onItemClick={handleItemClick}
+        onItemDoubleClick={handleItemDoubleClick}
       />
       {currentTrack?.spotifyTrackUri ? (
         <SpotifyEmbedPlayer
           title={currentTrack.title ?? "Selected track"}
           trackUri={currentTrack.spotifyTrackUri}
         />
+      ) : null}
+      {isPlaylistMode ? <PlaylistModeFrame /> : null}
+      {showPlaylistModal ? (
+        <PlaylistPickerModal
+          onSelect={handlePlaylistSelect}
+          onClose={() => setShowPlaylistModal(false)}
+        />
+      ) : null}
+      {toastMessage ? (
+        <Toast message={toastMessage} onDone={() => setToastMessage(null)} />
       ) : null}
     </div>
   );

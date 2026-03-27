@@ -5,6 +5,7 @@ type GalleryItemProps = {
   isActive?: boolean;
   sizeClass: string;
   onClick?: (item: GalleryItem) => void;
+  onDoubleClick?: (item: GalleryItem) => void;
   itemRef?: (element: HTMLButtonElement | null) => void;
 };
 
@@ -13,6 +14,7 @@ export function GalleryItem({
   isActive = false,
   sizeClass,
   onClick,
+  onDoubleClick,
   itemRef,
 }: GalleryItemProps) {
   return (
@@ -21,6 +23,7 @@ export function GalleryItem({
       type="button"
       className={`block ${sizeClass}${isActive ? " block--active" : ""}`}
       onClick={() => onClick?.(item)}
+      onDoubleClick={() => onDoubleClick?.(item)}
       aria-label={item.title ? `Play ${item.title}` : `Open item ${item.id}`}
       aria-pressed={isActive}
       style={{

@@ -68,11 +68,11 @@ type SpotifyApiErrorOptions = {
 
 type SpotifyErrorResponseBody = {
   error?:
-    | string
-    | {
-        status?: number;
-        message?: string;
-      };
+  | string
+  | {
+    status?: number;
+    message?: string;
+  };
   error_description?: string;
 };
 
@@ -127,9 +127,9 @@ async function spotifyFetch(path: string, options?: SpotifyFetchOptions): Promis
     body: options?.body ?? null,
   });
 
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     throw createSpotifyApiError("Spotify rejected the access token. Please sign in again.", {
-      status: response.status,
+      status: 401,
     });
   }
 
@@ -185,4 +185,40 @@ export async function getSpotifyLikedSongs(limit?: number, offset?: number): Pro
 export async function verifySpotifyConnection(): Promise<boolean> {
   await spotifyFetch("/me");
   return true;
+}
+
+export type SpotifyPlaylist = {
+  id: string;
+  name: string;
+  images: Array<{ url: string; width: number | null; height: number | null }>;
+  owner: { id: string };
+  tracks: { total: number };
+};
+
+export type SpotifyPlaylistsResponse = {
+  items: SpotifyPlaylist[];
+  total: number;
+  next: string | null;
+};
+
+export async function getUserPlaylists(limit = 50, offset = 0): Promise<SpotifyPlaylistsResponse> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return await spotifyFetcher<SpotifyPlaylistsResponse>(`/me/playlists?${params.toString()}`);
+}
+
+export async function createPlaylist(name: string, description?: string): Promise<SpotifyPlaylist> {
+  const response = await spotifyFetch(`/me/playlists`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, description: description ?? "", public: false }),
+  });
+  return (await response.json()) as SpotifyPlaylist;
+}
+
+export async function addTrackToPlaylist(playlistId: string, trackUri: string): Promise<void> {
+  await spotifyFetch(`/playlists/${playlistId}/items`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uris: [trackUri] }),
+  });
 }

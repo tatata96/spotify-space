@@ -21,6 +21,7 @@ export type GallerySceneProps = {
   layoutMode: LayoutMode;
   activeItemId?: string | null;
   onItemClick?: (item: GalleryItemData) => void;
+  onItemDoubleClick?: (item: GalleryItemData) => void;
 };
 
 export function GalleryScene({
@@ -29,6 +30,7 @@ export function GalleryScene({
   layoutMode,
   activeItemId,
   onItemClick,
+  onItemDoubleClick,
 }: GallerySceneProps) {
   const galleryRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -86,6 +88,7 @@ export function GalleryScene({
             isActive={item.id === activeItemId}
             sizeClass={sceneLayout.items[index]?.sizeClass ?? "block--small"}
             onClick={onItemClick}
+            onDoubleClick={onItemDoubleClick}
             itemRef={(element) => {
               itemRefs.current[index] = element;
             }}
