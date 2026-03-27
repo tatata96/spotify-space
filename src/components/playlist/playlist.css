@@ -11,8 +11,8 @@
   text-align: center;
   border-radius: 14px;
   border: 1px solid transparent;
-  background: rgba(221, 17, 17, 0.62);
-  color: rgba(170, 24, 24, 0.74);
+  background: rgba(255, 255, 255, 0.62);
+  color: rgba(34, 34, 34, 0.74);
   cursor: pointer;
   backdrop-filter: blur(8px);
   transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
@@ -25,9 +25,9 @@
 }
 
 .playlist-btn--active {
-  background: rgba(209, 81, 21, 0.18);
-  border-color: rgba(215, 150, 30, 0.5);
-  color: #d7561e;
+  background: rgba(30, 215, 96, 0.18);
+  border-color: rgba(30, 215, 96, 0.5);
+  color: #1ed760;
 }
 
 .playlist-btn--active:hover {
