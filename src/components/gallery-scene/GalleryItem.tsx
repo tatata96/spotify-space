@@ -2,6 +2,7 @@ import type { GalleryItem } from "@/types/types";
 
 type GalleryItemProps = {
   item: GalleryItem;
+  isActive?: boolean;
   sizeClass: string;
   onClick?: (item: GalleryItem) => void;
   itemRef?: (element: HTMLButtonElement | null) => void;
@@ -9,6 +10,7 @@ type GalleryItemProps = {
 
 export function GalleryItem({
   item,
+  isActive = false,
   sizeClass,
   onClick,
   itemRef,
@@ -17,9 +19,10 @@ export function GalleryItem({
     <button
       ref={itemRef}
       type="button"
-      className={`block ${sizeClass}`}
+      className={`block ${sizeClass}${isActive ? " block--active" : ""}`}
       onClick={() => onClick?.(item)}
-      aria-label={`Open item ${item.id}`}
+      aria-label={item.title ? `Play ${item.title}` : `Open item ${item.id}`}
+      aria-pressed={isActive}
       style={{
         backgroundImage: `url(${item.imageUrl})`,
       }}

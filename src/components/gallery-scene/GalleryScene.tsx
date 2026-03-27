@@ -4,7 +4,10 @@ import {
   SceneClusterScrollbar,
   type SceneClusterScrollbarItem,
 } from "./scrollbar/SceneClusterScrollbar";
-import { type GalleryItem as GalleryItemData } from "@/types/types";
+import {
+  type GalleryItem as GalleryItemData,
+  type GalleryItemFacetsByKey,
+} from "@/types/types";
 import { useViewportSize } from "./helper/useViewportSize";
 import { useGallerySceneLayout } from "./helper/useGallerySceneLayout";
 import { useScenePanZoom } from "./helper/useScenePanZoom";
@@ -14,13 +17,17 @@ export type { LayoutMode };
 
 export type GallerySceneProps = {
   items: GalleryItemData[];
+  facetsByKey: GalleryItemFacetsByKey;
   layoutMode: LayoutMode;
+  activeItemId?: string | null;
   onItemClick?: (item: GalleryItemData) => void;
 };
 
 export function GalleryScene({
   items,
+  facetsByKey,
   layoutMode,
+  activeItemId,
   onItemClick,
 }: GallerySceneProps) {
   const galleryRef = useRef<HTMLDivElement | null>(null);
@@ -28,7 +35,7 @@ export function GalleryScene({
   const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const viewportSize = useViewportSize();
-  const sceneLayout = useGallerySceneLayout(items, layoutMode, viewportSize);
+  const sceneLayout = useGallerySceneLayout(items, facetsByKey, layoutMode, viewportSize);
   const isClusterMode = layoutMode !== "initial";
   const clusterScrollbarItems = useMemo<SceneClusterScrollbarItem[]>(
     () =>
@@ -76,6 +83,7 @@ export function GalleryScene({
           <GalleryItem
             key={item.id}
             item={item}
+            isActive={item.id === activeItemId}
             sizeClass={sceneLayout.items[index]?.sizeClass ?? "block--small"}
             onClick={onItemClick}
             itemRef={(element) => {

@@ -15,17 +15,24 @@ export function GalleryFilters({
       <span className="filter-sidebar__label">View</span>
       <button
         type="button"
-        className={`filter-sidebar__btn ${layoutMode === "category" ? "is-active" : ""}`}
-        onClick={() => onLayoutModeChange("category")}
+        className={`filter-sidebar__btn ${layoutMode === "trackName" ? "is-active" : ""}`}
+        onClick={() => onLayoutModeChange("trackName")}
       >
-        Category
+        Track Name
       </button>
       <button
         type="button"
-        className={`filter-sidebar__btn ${layoutMode === "id" ? "is-active" : ""}`}
-        onClick={() => onLayoutModeChange("id")}
+        className={`filter-sidebar__btn ${layoutMode === "addedAt" ? "is-active" : ""}`}
+        onClick={() => onLayoutModeChange("addedAt")}
       >
-        Id
+        Date Added
+      </button>
+      <button
+        type="button"
+        className={`filter-sidebar__btn ${layoutMode === "releaseYear" ? "is-active" : ""}`}
+        onClick={() => onLayoutModeChange("releaseYear")}
+      >
+        Release Year
       </button>
       <button
         type="button"

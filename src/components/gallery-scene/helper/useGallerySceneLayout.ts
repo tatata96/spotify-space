@@ -5,10 +5,14 @@ import {
   type LayoutMode,
   type SceneLayout,
 } from "./gallerySceneLayout";
-import type { GalleryItem as GalleryItemData } from "@/types/types";
+import type {
+  GalleryItem as GalleryItemData,
+  GalleryItemFacetsByKey,
+} from "@/types/types";
 
 export function useGallerySceneLayout(
   items: GalleryItemData[],
+  facetsByKey: GalleryItemFacetsByKey,
   layoutMode: LayoutMode,
   viewportSize: { width: number; height: number }
 ): SceneLayout {
@@ -18,8 +22,8 @@ export function useGallerySceneLayout(
   }, [items, viewportSize]);
 
   const sceneLayout = useMemo(() => {
-    return createSceneLayout(items, initialLayout, layoutMode, viewportSize);
-  }, [items, initialLayout, layoutMode, viewportSize]);
+    return createSceneLayout(items, facetsByKey, initialLayout, layoutMode, viewportSize);
+  }, [items, facetsByKey, initialLayout, layoutMode, viewportSize]);
 
   return sceneLayout;
 }
