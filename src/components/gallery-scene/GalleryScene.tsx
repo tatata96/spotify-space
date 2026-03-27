@@ -20,6 +20,7 @@ export type GallerySceneProps = {
   facetsByKey: GalleryItemFacetsByKey;
   layoutMode: LayoutMode;
   activeItemId?: string | null;
+  disabled?: boolean;
   onItemClick?: (item: GalleryItemData) => void;
   onItemDoubleClick?: (item: GalleryItemData) => void;
 };
@@ -29,6 +30,7 @@ export function GalleryScene({
   facetsByKey,
   layoutMode,
   activeItemId,
+  disabled = false,
   onItemClick,
   onItemDoubleClick,
 }: GallerySceneProps) {
@@ -56,7 +58,8 @@ export function GalleryScene({
     labelRefs,
     sceneLayout,
     layoutMode,
-    viewportSize
+    viewportSize,
+    disabled
   );
 
   return (

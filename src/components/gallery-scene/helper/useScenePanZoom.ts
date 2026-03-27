@@ -16,7 +16,8 @@ export function useScenePanZoom(
   labelRefs: React.RefObject<(HTMLDivElement | null)[]>,
   sceneLayout: SceneLayout,
   layoutMode: LayoutMode,
-  viewportSize: { width: number; height: number }
+  viewportSize: { width: number; height: number },
+  disabled = false
 ) {
   const [activeClusterKey, setActiveClusterKey] = useState<string | null>(null);
   const [clusterScrollProgress, setClusterScrollProgress] = useState(0);
@@ -30,6 +31,8 @@ export function useScenePanZoom(
   const sceneLayoutRef = useRef(sceneLayout);
   const lastLayoutModeRef = useRef<LayoutMode>(layoutMode);
   const layoutModeRef = useRef<LayoutMode>(layoutMode);
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
 
   const updateActiveClusterKey = useCallback((nextKey: string | null) => {
     if (activeClusterKeyRef.current === nextKey) return;
@@ -238,6 +241,7 @@ export function useScenePanZoom(
     if (!gallery) return;
 
     function handleWheel(event: WheelEvent) {
+      if (disabledRef.current) return;
       const isPinch = event.ctrlKey;
 
       event.preventDefault();

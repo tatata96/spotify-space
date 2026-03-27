@@ -146,6 +146,7 @@ function App() {
         facetsByKey={facetsByKey}
         layoutMode={layoutMode}
         activeItemId={currentTrack?.id ?? null}
+        disabled={showPlaylistModal}
         onItemClick={handleItemClick}
         onItemDoubleClick={handleItemDoubleClick}
       />
