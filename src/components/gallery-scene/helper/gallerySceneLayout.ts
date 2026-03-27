@@ -39,7 +39,7 @@ const CLUSTER_MARGIN = 120;
 const CLUSTER_CENTER_OFFSET_Y = 24;
 const LABEL_GAP_X = 120;
 const LABEL_OFFSET_Y = 0;
-const CLUSTER_Z_PLANE = -200;
+const CLUSTER_Z_PLANE = 0;
 const CLUSTER_ITEM_SIZE = 36;
 const CLUSTER_ITEM_GAP = 50;
 const CLUSTER_PACKING_DENSITY = 0.62;
@@ -55,36 +55,6 @@ function clusterRadiusForCountNoOverlap(count: number): number {
   return Math.max(clusterRadiusForCount(count), requiredRadius);
 }
 
-/** Single random point inside a circle (uniform over area, with jitter). */
-function createScatterPoint(
-  centerX: number,
-  centerY: number,
-  radius: number,
-  jitter: number
-): { x: number; y: number } {
-  const angle = gsap.utils.random(0, Math.PI * 2);
-  const distance = radius * Math.sqrt(gsap.utils.random(0, 1));
-  const jitterX = gsap.utils.random(-jitter, jitter);
-  const jitterY = gsap.utils.random(-jitter, jitter);
-
-  return {
-    x: centerX + Math.cos(angle) * distance + jitterX,
-    y: centerY + Math.sin(angle) * distance + jitterY,
-  };
-}
-
-/** N random points inside one circle. Used for both scatter and cluster layouts. */
-function createScatterPoints(
-  centerX: number,
-  centerY: number,
-  radius: number,
-  jitter: number,
-  count: number
-): { x: number; y: number }[] {
-  return Array.from({ length: count }, () =>
-    createScatterPoint(centerX, centerY, radius, jitter)
-  );
-}
 
 function createSunflowerPoints(
   centerX: number,
@@ -114,14 +84,19 @@ export function createInitialLayout(
 ): SceneItemMeta[] {
   const centerX = viewportSize.width / 2;
   const centerY = viewportSize.height / 2;
-  const maxRadius = 900;
 
-  const points = createScatterPoints(centerX, centerY, maxRadius, 40, items.length);
+  // Scale radius with item count so items never overlap regardless of library size.
+  const minItemSpacing = CLUSTER_ITEM_SIZE + 16;
+  const radius = Math.max(400, minItemSpacing * Math.sqrt(Math.max(1, items.length) / Math.PI));
+
+  // Sunflower packing guarantees non-overlapping placement; small jitter breaks
+  // the mechanical look while keeping items clearly separable for hit-testing.
+  const points = createSunflowerPoints(centerX, centerY, radius, items.length);
 
   return points.map((point) => ({
-    x: point.x,
-    y: point.y,
-    baseZ: gsap.utils.random(-4000, 800),
+    x: point.x + gsap.utils.random(-12, 12),
+    y: point.y + gsap.utils.random(-12, 12),
+    baseZ: gsap.utils.random(-200, 80),
     sizeClass: CLUSTER_SIZE_CLASS,
   }));
 }

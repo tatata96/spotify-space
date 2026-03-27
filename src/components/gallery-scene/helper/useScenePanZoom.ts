@@ -3,11 +3,10 @@ import { gsap } from "gsap";
 import type { LayoutMode, SceneLayout } from "./gallerySceneLayout";
 
 const PAN_SPEED = 0.8;
-const ZOOM_SPEED = 90;
-const MIN_CAMERA_Z = -20000;
-const MAX_CAMERA_Z = 35000;
-const MIN_CLUSTER_CAMERA_Z = 1500;
-const MAX_CLUSTER_CAMERA_Z = 15000;
+const ZOOM_SENSITIVITY = 0.015;
+const MIN_ZOOM = 0.05;
+const MAX_ZOOM = 8;
+const PERSPECTIVE = 1500;
 const LAYOUT_ANIMATION_DURATION = 0.95;
 const CAMERA_ANIMATION_DURATION = 0.25;
 
@@ -23,7 +22,8 @@ export function useScenePanZoom(
   const [clusterScrollProgress, setClusterScrollProgress] = useState(0);
   const cameraXRef = useRef(0);
   const cameraYRef = useRef(0);
-  const cameraZRef = useRef(4000);
+  const zoomRef = useRef(1);
+  const mousePosRef = useRef({ x: 0, y: 0 });
   const activeClusterKeyRef = useRef<string | null>(null);
   const activeClusterFrameRef = useRef<number | null>(null);
   const clusterScrollProgressRef = useRef(0);
@@ -63,17 +63,33 @@ export function useScenePanZoom(
     if (!gallery) return;
     const applyTransform = duration === 0 ? gsap.set : gsap.to;
 
+    const vwCenter = viewportSize.width / 2;
+    const vhCenter = viewportSize.height / 2;
+    const zoom = zoomRef.current;
+    const camX = cameraXRef.current;
+    const camY = cameraYRef.current;
+
+    // Each item is positioned directly in viewport space — no CSS 3D preserve-3d needed.
+    // Formula matches what CSS perspective(PERSPECTIVE) + translateZ(baseZ) would produce,
+    // but uses plain 2D transforms so pointer events are always reliable.
+    //
+    // depthScale = PERSPECTIVE / (PERSPECTIVE - baseZ)  (same as CSS perspective projection)
+    // screenX    = (contentX - vwCenter) * zoom * depthScale + camX * depthScale + vwCenter
+    //
+    // The camX * depthScale term gives parallax: closer items shift more on pan.
+
     layout.items.forEach((sceneItem, index) => {
       const element = itemRefs.current[index];
       if (!element) return;
 
-      const relativeZ = sceneItem.baseZ - cameraZRef.current;
+      const depthScale = PERSPECTIVE / Math.max(1, PERSPECTIVE - sceneItem.baseZ);
+      const itemScale = zoom * depthScale;
 
       applyTransform(element, {
         duration,
-        x: sceneItem.x,
-        y: sceneItem.y,
-        z: relativeZ,
+        x: (sceneItem.x - vwCenter) * itemScale + camX * depthScale + vwCenter,
+        y: (sceneItem.y - vhCenter) * itemScale + camY * depthScale + vhCenter,
+        scale: itemScale,
         ease: "power3.inOut",
         overwrite: "auto",
       });
@@ -83,12 +99,14 @@ export function useScenePanZoom(
       const element = labelRefs.current[index];
       if (!element) return;
 
-      const relativeZ = label.baseZ - cameraZRef.current;
+      const depthScale = PERSPECTIVE / Math.max(1, PERSPECTIVE - label.baseZ);
+      const labelScale = zoom * depthScale;
+
       applyTransform(element, {
         duration,
-        x: label.x,
-        y: label.y,
-        z: relativeZ,
+        x: (label.x - vwCenter) * labelScale + camX * depthScale + vwCenter,
+        y: (label.y - vhCenter) * labelScale + camY * depthScale + vhCenter,
+        scale: labelScale,
         yPercent: -50,
         autoAlpha: 1,
         ease: "power3.inOut",
@@ -96,13 +114,8 @@ export function useScenePanZoom(
       });
     });
 
-    applyTransform(gallery, {
-      duration: duration === 0 ? 0 : CAMERA_ANIMATION_DURATION,
-      x: cameraXRef.current,
-      y: cameraYRef.current,
-      ease: "power2.out",
-      overwrite: "auto",
-    });
+    // Gallery is just a DOM container — clear any stale GSAP transforms.
+    gsap.set(gallery, { x: 0, y: 0, scale: 1 });
 
     if (layoutModeRef.current === "initial" || layout.labels.length === 0) {
       updateActiveClusterKey(null);
@@ -110,8 +123,10 @@ export function useScenePanZoom(
       return;
     }
 
+    // Content-space Y at the viewport center.
+    // From: 0 = (content_y - vhCenter) * zoom + camY  →  content_y = vhCenter - camY / zoom
     const sortedLabels = [...layout.labels].sort((first, second) => first.y - second.y);
-    const viewportCenterY = viewportSize.height / 2 - cameraYRef.current;
+    const viewportCenterY = vhCenter - camY / zoom;
     let closestLabel = sortedLabels[0];
     let closestDistance = Math.abs(closestLabel.y - viewportCenterY);
 
@@ -151,6 +166,7 @@ export function useScenePanZoom(
     labelRefs,
     updateActiveClusterKey,
     updateClusterScrollProgress,
+    viewportSize.width,
     viewportSize.height,
   ]);
 
@@ -159,7 +175,8 @@ export function useScenePanZoom(
     const targetLabel = layout.labels.find((label) => label.key === clusterKey);
     if (!targetLabel) return;
 
-    cameraYRef.current = viewportSize.height / 2 - targetLabel.y;
+    // To center label.y at viewport: content_y = vhCenter - camY/zoom → camY = (vhCenter - label.y) * zoom
+    cameraYRef.current = (viewportSize.height / 2 - targetLabel.y) * zoomRef.current;
     updateScene(CAMERA_ANIMATION_DURATION);
   }, [updateScene, viewportSize.height]);
 
@@ -199,24 +216,21 @@ export function useScenePanZoom(
     const contentCenterX = (minX + maxX) / 2;
     const contentCenterY = (minY + maxY) / 2;
 
-    cameraXRef.current = viewportSize.width / 2 - contentCenterX;
-    cameraYRef.current = viewportSize.height / 2 - contentCenterY;
-
     const spanX = Math.max(1, maxX - minX);
     const spanY = Math.max(1, maxY - minY);
-    const span = Math.max(spanX, spanY);
 
-    // Heuristic: bigger layouts start slightly farther away.
-    const targetCameraZ =
-      mode === "initial"
-        ? 4000
-        : gsap.utils.clamp(
-            MIN_CLUSTER_CAMERA_Z,
-            MAX_CLUSTER_CAMERA_Z,
-            2000 + span * 6
-          );
+    if (mode === "initial") {
+      zoomRef.current = 1;
+    } else {
+      const fitScale =
+        Math.min(viewportSize.width / spanX, viewportSize.height / spanY) * 0.8;
+      zoomRef.current = gsap.utils.clamp(MIN_ZOOM, MAX_ZOOM, fitScale);
+    }
 
-    cameraZRef.current = targetCameraZ;
+    // Camera so content center lands at viewport center.
+    // From: content_x = vwCenter - camX/zoom → camX = (vwCenter - content_x) * zoom
+    cameraXRef.current = (viewportSize.width / 2 - contentCenterX) * zoomRef.current;
+    cameraYRef.current = (viewportSize.height / 2 - contentCenterY) * zoomRef.current;
   }, [viewportSize.height, viewportSize.width]);
 
   useEffect(() => {
@@ -236,30 +250,48 @@ export function useScenePanZoom(
               ? window.innerHeight
               : 1;
 
-        cameraZRef.current += event.deltaY * deltaMultiplier * ZOOM_SPEED;
-        const isClusterMode = layoutModeRef.current !== "initial";
-        cameraZRef.current = gsap.utils.clamp(
-          isClusterMode ? MIN_CLUSTER_CAMERA_Z : MIN_CAMERA_Z,
-          isClusterMode ? MAX_CLUSTER_CAMERA_Z : MAX_CAMERA_Z,
-          cameraZRef.current
+        const delta = event.deltaY * deltaMultiplier;
+        const oldZoom = zoomRef.current;
+        const newZoom = gsap.utils.clamp(
+          MIN_ZOOM,
+          MAX_ZOOM,
+          oldZoom * (1 - delta * ZOOM_SENSITIVITY)
         );
+        const ratio = newZoom / oldZoom;
+
+        // Zoom toward mouse: keep content point under cursor fixed.
+        // Derived for depthScale=1 (z=0 reference plane) — correct for the overall scene.
+        const ox = window.innerWidth / 2;
+        const oy = window.innerHeight / 2;
+        const mx = mousePosRef.current.x;
+        const my = mousePosRef.current.y;
+
+        cameraXRef.current = cameraXRef.current * ratio + (mx - ox) * (1 - ratio);
+        cameraYRef.current = cameraYRef.current * ratio + (my - oy) * (1 - ratio);
+        zoomRef.current = newZoom;
 
         updateScene(0);
         return;
-      } else {
-        cameraXRef.current -= event.deltaX * PAN_SPEED;
-        cameraYRef.current -= event.deltaY * PAN_SPEED;
       }
 
+      cameraXRef.current -= event.deltaX * PAN_SPEED;
+      cameraYRef.current -= event.deltaY * PAN_SPEED;
+
       updateScene(CAMERA_ANIMATION_DURATION);
+    }
+
+    function handleMouseMove(event: MouseEvent) {
+      mousePosRef.current = { x: event.clientX, y: event.clientY };
     }
 
     updateScene(0);
 
     window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("mousemove", handleMouseMove);
 
     return () => {
       window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("mousemove", handleMouseMove);
     };
   }, [galleryRef, itemRefs, labelRefs, updateScene]);
 
