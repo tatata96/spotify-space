@@ -67,3 +67,15 @@
     min-width: 112px;
   }
 }
+
+.filter-sidebar__btn.is-loading {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+  animation: filter-btn-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes filter-btn-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.25; }
+}

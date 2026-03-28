@@ -11,13 +11,19 @@ export type GalleryItemSpotifyFacets = {
   releaseDate?: string;
 };
 
+export type GalleryItemAiFacets = {
+  genre?: string;
+  country?: string;
+  bpm?: "slow" | "mid" | "fast" | "energetic";
+};
+
 export type GalleryItemFacets = {
   spotify?: GalleryItemSpotifyFacets;
-  [source: string]: Record<string, unknown> | undefined;
+  ai?: GalleryItemAiFacets;
+  [source: string]: unknown;
 };
 
 export type GalleryItemFacetsByKey = Record<string, GalleryItemFacets>;
-
 
 export type GallerySceneProps = {
   items: GalleryItem[];

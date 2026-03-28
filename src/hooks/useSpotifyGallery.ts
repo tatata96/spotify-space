@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import type { GalleryItem, GalleryItemFacetsByKey } from "@/types/types";
 import { loadSpotifyGalleryItems } from "@/helper/spotifyGallery";
+import { enrichTracksWithAi, GeminiQuotaExceededError } from "@/api/gemini";
 
 const SPOTIFY_GALLERY_CACHE_KEY = "spotify_gallery_items";
 const SPOTIFY_GALLERY_CACHE_TTL_MS = 1000 * 60 * 10;
@@ -17,6 +18,7 @@ type SpotifyGalleryState = {
   likedSongsCount: number;
   totalLikedSongs: number | null;
   isLoading: boolean;
+  isAiEnriching: boolean;
   errorMessage: string | null;
 };
 
@@ -80,6 +82,7 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
   const [likedSongsCount, setLikedSongsCount] = useState(0);
   const [totalLikedSongs, setTotalLikedSongs] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAiEnriching, setIsAiEnriching] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -131,11 +134,23 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
           return;
         }
 
+        // Carry over AI facets from the previous cache so already-enriched
+        // tracks are not re-sent to Gemini after a Spotify cache refresh.
+        const mergedFacets: GalleryItemFacetsByKey = { ...nextGallery.facetsByKey };
+        if (cachedGallery) {
+          for (const key of Object.keys(mergedFacets)) {
+            const previousAi = cachedGallery.facetsByKey[key]?.ai;
+            if (previousAi) {
+              mergedFacets[key] = { ...mergedFacets[key], ai: previousAi };
+            }
+          }
+        }
+
         setItems(nextGallery.items);
-        setFacetsByKey(nextGallery.facetsByKey);
+        setFacetsByKey(mergedFacets);
         setLikedSongsCount(nextGallery.items.length);
         setTotalLikedSongs((currentTotal) => currentTotal ?? nextGallery.items.length);
-        saveCachedSpotifyGallery(nextGallery.items, nextGallery.facetsByKey);
+        saveCachedSpotifyGallery(nextGallery.items, mergedFacets);
       } catch (error) {
         if (isCancelled) {
           return;
@@ -160,12 +175,86 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
     };
   }, [enabled, accessToken]);
 
+  useEffect(() => {
+    if (!enabled || isLoading || items.length === 0) return;
+
+    const missingTracks = items.filter((item) => {
+      const key = item.spotifyTrackUri ?? item.id;
+      return !facetsByKey[key]?.ai;
+    });
+
+    if (missingTracks.length === 0) return;
+
+    let cancelled = false;
+    setIsAiEnriching(true);
+
+    const BATCH_SIZE = 200;
+
+    const runEnrichment = async () => {
+      const trackInputs = missingTracks.map((item) => ({
+        id: item.spotifyTrackUri ?? item.id,
+        title: item.title ?? "",
+        artist: item.category ?? "",
+      }));
+
+      const finalFacets: GalleryItemFacetsByKey = { ...facetsByKey };
+
+      try {
+        for (let i = 0; i < trackInputs.length; i += BATCH_SIZE) {
+          if (cancelled) return;
+
+          const batch = trackInputs.slice(i, i + BATCH_SIZE);
+
+          try {
+            const results = await enrichTracksWithAi(batch);
+            if (cancelled) return;
+
+            for (const [key, aiFacets] of Object.entries(results)) {
+              finalFacets[key] = { ...finalFacets[key], ai: aiFacets };
+            }
+
+            setFacetsByKey((current) => {
+              const updated = { ...current };
+              for (const [key, aiFacets] of Object.entries(results)) {
+                updated[key] = { ...updated[key], ai: aiFacets };
+              }
+              return updated;
+            });
+          } catch (err) {
+            if (err instanceof GeminiQuotaExceededError) {
+              setErrorMessage("Gemini free tier quota exceeded. AI enrichment is unavailable until your quota resets.");
+              return;
+            }
+            console.error("AI enrichment batch failed:", err);
+          }
+        }
+
+        if (!cancelled) {
+          saveCachedSpotifyGallery(items, finalFacets);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAiEnriching(false);
+        }
+      }
+    };
+
+    void runEnrichment();
+
+    return () => {
+      cancelled = true;
+    };
+    // facetsByKey intentionally omitted — enrichment triggers on item list changes only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, isLoading, enabled]);
+
   return {
     items,
     facetsByKey,
     likedSongsCount,
     totalLikedSongs,
     isLoading,
+    isAiEnriching,
     errorMessage,
   };
 }

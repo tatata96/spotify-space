@@ -25,7 +25,7 @@ export type SceneLayout = {
   labels: SceneLabelMeta[];
 };
 
-export type LayoutMode = "trackName" | "addedAt" | "releaseYear" | "initial";
+export type LayoutMode = "trackName" | "addedAt" | "releaseYear" | "initial" | "genre" | "country" | "bpm";
 
 const CLUSTER_SIZE_CLASS = "block--small";
 
@@ -124,6 +124,18 @@ function getSpotifyAddedAt(item: GalleryItemData, facetsByKey: GalleryItemFacets
 
 function getSpotifyReleaseDate(item: GalleryItemData, facetsByKey: GalleryItemFacetsByKey): string | null {
   return facetsByKey[getFacetKey(item)]?.spotify?.releaseDate ?? null;
+}
+
+function getAiGenre(item: GalleryItemData, facetsByKey: GalleryItemFacetsByKey): string | null {
+  return facetsByKey[getFacetKey(item)]?.ai?.genre ?? null;
+}
+
+function getAiCountry(item: GalleryItemData, facetsByKey: GalleryItemFacetsByKey): string | null {
+  return facetsByKey[getFacetKey(item)]?.ai?.country ?? null;
+}
+
+function getAiBpm(item: GalleryItemData, facetsByKey: GalleryItemFacetsByKey): string | null {
+  return facetsByKey[getFacetKey(item)]?.ai?.bpm ?? null;
 }
 
 function normalizedTrackName(value?: string): string {
@@ -235,6 +247,8 @@ function createClusterLayout({
   };
 }
 
+const BPM_ORDER: Record<string, number> = { slow: 0, mid: 1, fast: 2, energetic: 3 };
+
 export function createSceneLayout(
   items: GalleryItemData[],
   facetsByKey: GalleryItemFacetsByKey,
@@ -309,6 +323,74 @@ export function createSceneLayout(
         return releaseYear !== null ? String(releaseYear) : UNKNOWN_RELEASE_YEAR_GROUP;
       },
       labelTitle: (group) => group,
+    });
+  }
+
+  if (layoutMode === "genre") {
+    return createClusterLayout({
+      items,
+      facetsByKey,
+      initialLayout,
+      viewportSize,
+      sortItems: (sceneItems, facets) =>
+        [...sceneItems].sort((a, b) => {
+          const ga = getAiGenre(a, facets) ?? "";
+          const gb = getAiGenre(b, facets) ?? "";
+          return ga.localeCompare(gb) || normalizedTrackName(a.title).localeCompare(normalizedTrackName(b.title));
+        }),
+      groupKey: (item, facets) => getAiGenre(item, facets) ?? "Unknown Genre",
+      labelTitle: (group) => group,
+    });
+  }
+
+  if (layoutMode === "country") {
+    const displayNames = new Intl.DisplayNames(["en"], { type: "region" });
+    return createClusterLayout({
+      items,
+      facetsByKey,
+      initialLayout,
+      viewportSize,
+      sortItems: (sceneItems, facets) =>
+        [...sceneItems].sort((a, b) => {
+          const ca = getAiCountry(a, facets) ?? "";
+          const cb = getAiCountry(b, facets) ?? "";
+          return ca.localeCompare(cb) || normalizedTrackName(a.title).localeCompare(normalizedTrackName(b.title));
+        }),
+      groupKey: (item, facets) => getAiCountry(item, facets) ?? "Unknown Country",
+      labelTitle: (group) => {
+        if (group === "Unknown Country") return group;
+        try {
+          return displayNames.of(group) ?? group;
+        } catch {
+          return group;
+        }
+      },
+    });
+  }
+
+  if (layoutMode === "bpm") {
+    return createClusterLayout({
+      items,
+      facetsByKey,
+      initialLayout,
+      viewportSize,
+      sortItems: (sceneItems, facets) =>
+        [...sceneItems].sort((a, b) => {
+          const orderA = BPM_ORDER[getAiBpm(a, facets) ?? ""] ?? 99;
+          const orderB = BPM_ORDER[getAiBpm(b, facets) ?? ""] ?? 99;
+          if (orderA !== orderB) return orderA - orderB;
+          return normalizedTrackName(a.title).localeCompare(normalizedTrackName(b.title));
+        }),
+      groupKey: (item, facets) => getAiBpm(item, facets) ?? "Unknown",
+      labelTitle: (group) => {
+        const labels: Record<string, string> = {
+          slow: "Slow",
+          mid: "Mid",
+          fast: "Fast",
+          energetic: "Energetic",
+        };
+        return labels[group] ?? group;
+      },
     });
   }
 

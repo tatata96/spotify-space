@@ -4,11 +4,13 @@ import "./gallery_filters.css";
 export type GalleryFiltersProps = {
   layoutMode: LayoutMode;
   onLayoutModeChange: (mode: LayoutMode) => void;
+  isAiEnriching: boolean;
 };
 
 export function GalleryFilters({
   layoutMode,
   onLayoutModeChange,
+  isAiEnriching,
 }: GalleryFiltersProps) {
   return (
     <aside className="filter-sidebar">
@@ -33,6 +35,30 @@ export function GalleryFilters({
         onClick={() => onLayoutModeChange("releaseYear")}
       >
         Release Year
+      </button>
+      <button
+        type="button"
+        className={`filter-sidebar__btn ${layoutMode === "genre" ? "is-active" : ""} ${isAiEnriching ? "is-loading" : ""}`}
+        disabled={isAiEnriching}
+        onClick={() => onLayoutModeChange("genre")}
+      >
+        Genre
+      </button>
+      <button
+        type="button"
+        className={`filter-sidebar__btn ${layoutMode === "country" ? "is-active" : ""} ${isAiEnriching ? "is-loading" : ""}`}
+        disabled={isAiEnriching}
+        onClick={() => onLayoutModeChange("country")}
+      >
+        Country
+      </button>
+      <button
+        type="button"
+        className={`filter-sidebar__btn ${layoutMode === "bpm" ? "is-active" : ""} ${isAiEnriching ? "is-loading" : ""}`}
+        disabled={isAiEnriching}
+        onClick={() => onLayoutModeChange("bpm")}
+      >
+        Speed
       </button>
       <button
         type="button"
