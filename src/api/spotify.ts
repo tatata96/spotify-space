@@ -217,7 +217,7 @@ export async function createPlaylist(name: string, description?: string): Promis
 
 export async function addTrackToPlaylist(playlistId: string, trackUri: string): Promise<void> {
   await spotifyFetch(`/playlists/${playlistId}/items`, {
-    method: "PUT",
+    method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ uris: [trackUri] }),
   });
