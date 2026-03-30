@@ -65,8 +65,6 @@ function App() {
     setIsPlaylistMode(true);
   };
 
-  console.log(galleryItems);
-
   if (!tokens) {
     return (
       <SpotifyLoginScreen
