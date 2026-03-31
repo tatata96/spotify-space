@@ -1,74 +1,57 @@
-# React + TypeScript + Vite
+# Spotify Space
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An interactive visual gallery for your Spotify liked songs. Albums float in a 3D-like space and can be clustered and explored by track name, release year, or date added.
 
-Currently, two official plugins are available:
+## Purpose
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Spotify Space transforms your liked songs library into a browsable visual experience — album art arranged spatially, with animated layout modes that group your music in different ways. Click any album to play it via the embedded Spotify player.
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Layer | Technology |
+|-------|-----------|
+| Framework | React 19 |
+| Language | TypeScript |
+| Build tool | Vite |
+| Animation | GSAP 3 |
+| Auth | Spotify PKCE OAuth |
+| Data | Spotify Web API |
+| Persistence | localStorage (tokens + gallery cache) |
 
-## Expanding the ESLint configuration
+No backend. No database. Runs entirely in the browser.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Getting Started
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+1. Create a Spotify app at [developer.spotify.com](https://developer.spotify.com) and add `http://127.0.0.1:5173/callback` as a redirect URI.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+2. Create a `.env` file in the project root:
+   ```
+   VITE_SPOTIFY_CLIENT_ID=your_client_id_here
+   VITE_SPOTIFY_REDIRECT_URI=http://127.0.0.1:5173/callback
+   ```
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+3. Install dependencies and start the dev server:
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+4. Open `http://127.0.0.1:5173` — must use this exact URL (not `localhost`) to match the Spotify OAuth callback.
+
+## Commands
+
+```bash
+npm run dev      # Dev server at http://127.0.0.1:5173
+npm run build    # TypeScript compile + Vite bundle
+npm run lint     # ESLint
+npm run preview  # Preview production build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Layout Modes
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-# spotify-space
+| Mode | Description |
+|------|-------------|
+| Default | Random scatter with z-depth |
+| Track Name | Clustered alphabetically |
+| Release Year | Clustered by album release year |
+| Date Added | Clustered by when you liked the song |
