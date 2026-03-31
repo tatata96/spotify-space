@@ -6,6 +6,8 @@ An interactive visual gallery for your Spotify liked songs. Albums float in a 3D
 
 Spotify Space transforms your liked songs library into a browsable visual experience — album art arranged spatially, with animated layout modes that group your music in different ways. Click any album to play it via the embedded Spotify player.
 
+Here's the demo: (https://spotify-space.vercel.app/)
+
 ## Tech Stack
 
 | Layer | Technology |
