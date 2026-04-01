@@ -2,6 +2,7 @@ import { gsap } from "gsap";
 import { getYearMonthKeyFromIso, parseIsoDateToTimestamp, parseReleaseYear } from "@/lib/dateTime";
 import {
   type GalleryItem as GalleryItemData,
+  type GalleryItemAiFacets,
   type GalleryItemFacetsByKey,
 } from "@/types/types";
 
@@ -25,7 +26,7 @@ export type SceneLayout = {
   labels: SceneLabelMeta[];
 };
 
-export type LayoutMode = "trackName" | "addedAt" | "releaseYear" | "initial";
+export type LayoutMode = "trackName" | "addedAt" | "releaseYear" | "initial" | "genre" | "country" | "bpm";
 
 const CLUSTER_SIZE_CLASS = "block--small";
 
@@ -113,6 +114,9 @@ type ClusterLayoutOptions = {
 
 const UNKNOWN_ADDED_DATE_GROUP = "Unknown Added Date";
 const UNKNOWN_RELEASE_YEAR_GROUP = "Unknown Release Year";
+const UNKNOWN_GENRE_GROUP = "Unknown Genre";
+const UNKNOWN_COUNTRY_GROUP = "Unknown Country";
+const UNKNOWN_BPM_GROUP = "Unknown Speed";
 
 function getFacetKey(item: GalleryItemData): string {
   return item.spotifyTrackUri ?? item.id;
@@ -124,6 +128,14 @@ function getSpotifyAddedAt(item: GalleryItemData, facetsByKey: GalleryItemFacets
 
 function getSpotifyReleaseDate(item: GalleryItemData, facetsByKey: GalleryItemFacetsByKey): string | null {
   return facetsByKey[getFacetKey(item)]?.spotify?.releaseDate ?? null;
+}
+
+function getAiFacet<K extends keyof GalleryItemAiFacets>(
+  item: GalleryItemData,
+  facetsByKey: GalleryItemFacetsByKey,
+  key: K,
+): GalleryItemAiFacets[K] | null {
+  return facetsByKey[getFacetKey(item)]?.ai?.[key] ?? null;
 }
 
 function normalizedTrackName(value?: string): string {
@@ -235,6 +247,10 @@ function createClusterLayout({
   };
 }
 
+const BPM_ORDER: Record<string, number> = { slow: 0, mid: 1, fast: 2, energetic: 3 };
+const BPM_LABELS: Record<string, string> = { slow: "Slow", mid: "Mid", fast: "Fast", energetic: "Energetic" };
+const COUNTRY_DISPLAY_NAMES = new Intl.DisplayNames(["en"], { type: "region" });
+
 export function createSceneLayout(
   items: GalleryItemData[],
   facetsByKey: GalleryItemFacetsByKey,
@@ -309,6 +325,65 @@ export function createSceneLayout(
         return releaseYear !== null ? String(releaseYear) : UNKNOWN_RELEASE_YEAR_GROUP;
       },
       labelTitle: (group) => group,
+    });
+  }
+
+  if (layoutMode === "genre") {
+    return createClusterLayout({
+      items,
+      facetsByKey,
+      initialLayout,
+      viewportSize,
+      sortItems: (sceneItems, facets) =>
+        [...sceneItems].sort((a, b) => {
+          const ga = getAiFacet(a, facets, "genre") ?? "";
+          const gb = getAiFacet(b, facets, "genre") ?? "";
+          return ga.localeCompare(gb) || normalizedTrackName(a.title).localeCompare(normalizedTrackName(b.title));
+        }),
+      groupKey: (item, facets) => getAiFacet(item, facets, "genre") ?? UNKNOWN_GENRE_GROUP,
+      labelTitle: (group) => group,
+    });
+  }
+
+  if (layoutMode === "country") {
+    return createClusterLayout({
+      items,
+      facetsByKey,
+      initialLayout,
+      viewportSize,
+      sortItems: (sceneItems, facets) =>
+        [...sceneItems].sort((a, b) => {
+          const ca = getAiFacet(a, facets, "country") ?? "";
+          const cb = getAiFacet(b, facets, "country") ?? "";
+          return ca.localeCompare(cb) || normalizedTrackName(a.title).localeCompare(normalizedTrackName(b.title));
+        }),
+      groupKey: (item, facets) => getAiFacet(item, facets, "country") ?? UNKNOWN_COUNTRY_GROUP,
+      labelTitle: (group) => {
+        if (group === UNKNOWN_COUNTRY_GROUP) return group;
+        try {
+          return COUNTRY_DISPLAY_NAMES.of(group) ?? group;
+        } catch {
+          return group;
+        }
+      },
+    });
+  }
+
+  if (layoutMode === "bpm") {
+    return createClusterLayout({
+      items,
+      facetsByKey,
+      initialLayout,
+      viewportSize,
+      sortItems: (sceneItems, facets) =>
+        [...sceneItems].sort((a, b) => {
+          const orderA = BPM_ORDER[getAiFacet(a, facets, "bpm") ?? ""] ?? 99;
+          const orderB = BPM_ORDER[getAiFacet(b, facets, "bpm") ?? ""] ?? 99;
+          if (orderA !== orderB) return orderA - orderB;
+          return normalizedTrackName(a.title).localeCompare(normalizedTrackName(b.title));
+        }),
+      groupKey: (item, facets) => getAiFacet(item, facets, "bpm") ?? UNKNOWN_BPM_GROUP,
+      labelTitle: (group) => BPM_LABELS[group] ?? group,
     });
   }
 

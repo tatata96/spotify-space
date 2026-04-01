@@ -28,6 +28,7 @@ function App() {
     likedSongsCount,
     totalLikedSongs,
     isLoading: isLibraryLoading,
+    isAiEnriching,
     errorMessage: libraryError,
   } = useSpotifyGallery({
     enabled: isSignedIn,
@@ -140,6 +141,7 @@ function App() {
       <GalleryFilters
         layoutMode={layoutMode}
         onLayoutModeChange={setLayoutMode}
+        isAiEnriching={isAiEnriching}
       />
       <GalleryScene
         items={galleryItems}
