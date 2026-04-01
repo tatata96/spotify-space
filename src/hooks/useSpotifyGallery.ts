@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import type { GalleryItem, GalleryItemFacetsByKey } from "@/types/types";
+import type { GalleryItem, GalleryItemAiFacets, GalleryItemFacetsByKey } from "@/types/types";
 import { loadSpotifyGalleryItems } from "@/helper/spotifyGallery";
 import { enrichTracksWithAi, GeminiQuotaExceededError } from "@/api/gemini";
 
@@ -81,11 +81,11 @@ function clearCachedSpotifyGallery() {
 }
 
 type AiFacetsCacheEntry = {
-  facets: Record<string, import("@/types/types").GalleryItemAiFacets>;
+  facets: Record<string, GalleryItemAiFacets>;
   cachedAt: number;
 };
 
-function loadCachedAiFacets(): Record<string, import("@/types/types").GalleryItemAiFacets> {
+function loadCachedAiFacets(): Record<string, GalleryItemAiFacets> {
   try {
     const raw = window.localStorage.getItem(SPOTIFY_AI_FACETS_CACHE_KEY);
     if (!raw) return {};
@@ -105,7 +105,7 @@ function loadCachedAiFacets(): Record<string, import("@/types/types").GalleryIte
   }
 }
 
-function saveCachedAiFacets(facets: Record<string, import("@/types/types").GalleryItemAiFacets>) {
+function saveCachedAiFacets(facets: Record<string, GalleryItemAiFacets>) {
   try {
     window.localStorage.setItem(SPOTIFY_AI_FACETS_CACHE_KEY, JSON.stringify({ facets, cachedAt: Date.now() }));
   } catch {
@@ -239,6 +239,11 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
       }));
 
       const finalFacets: GalleryItemFacetsByKey = { ...facetsByKey };
+      // Accumulate only the AI facets written so far — avoids scanning all of finalFacets each batch.
+      const aiAccumulator: Record<string, GalleryItemAiFacets> = {};
+      for (const [k, facet] of Object.entries(finalFacets)) {
+        if (facet.ai) aiAccumulator[k] = facet.ai;
+      }
 
       try {
         for (let i = 0; i < trackInputs.length; i += BATCH_SIZE) {
@@ -252,6 +257,7 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
 
             for (const [key, aiFacets] of Object.entries(results)) {
               finalFacets[key] = { ...finalFacets[key], ai: aiFacets };
+              aiAccumulator[key] = aiFacets;
             }
 
             setFacetsByKey((current) => {
@@ -262,15 +268,10 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
               return updated;
             });
 
-            // Save after each batch so partial results survive a page refresh.
+            // Save AI facets after each batch so partial results survive a page refresh.
             // The AI cache has a 7-day TTL (independent of the 10-min Spotify cache)
             // so enrichment is skipped on subsequent loads even after the gallery cache expires.
-            const aiSoFar: Record<string, import("@/types/types").GalleryItemAiFacets> = {};
-            for (const [k, facet] of Object.entries(finalFacets)) {
-              if (facet.ai) aiSoFar[k] = facet.ai;
-            }
-            saveCachedAiFacets(aiSoFar);
-            saveCachedSpotifyGallery(items, finalFacets);
+            saveCachedAiFacets(aiAccumulator);
           } catch (err) {
             if (err instanceof GeminiQuotaExceededError) {
               setErrorMessage("Gemini free tier quota exceeded. AI enrichment is unavailable until your quota resets.");
@@ -281,6 +282,7 @@ export function useSpotifyGallery({ enabled, accessToken }: UseSpotifyGalleryOpt
         }
       } finally {
         if (!cancelled) {
+          saveCachedSpotifyGallery(items, finalFacets);
           setIsAiEnriching(false);
         }
       }
